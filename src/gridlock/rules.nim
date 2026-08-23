@@ -13,6 +13,11 @@ import graph
 import events
 
 proc resetTurnWindow*(sim: var Sim) =
+  ## The statistics window is the TURN SO FAR, not a rolling 240 ticks: these
+  ## accumulators are cleared at every turn boundary and `refreshHeat` divides
+  ## by whatever has landed since. A seat's view is built before the turn clock
+  ## advances, so the numbers it is handed were measured inside the turn that
+  ## just played. docs/PROTOCOL.md states the window in the same words.
   for lane in 0 ..< LaneCount:
     sim.laneOccAccum[lane] = 0
   sim.occSamples = 0

@@ -64,8 +64,14 @@ model for one routing plan.
   `= min(9, meanLaneOccupancyPercentInDistrict / 10)` over the lanes whose head node is in that
   district.
 - `jam_index` is city-wide: `100 × blockedMoveOpportunities / totalMoveOpportunities` for on-road
-  vans over the previous turn window, clamped 0…100. `you.stalled_pct` is the same quantity over
-  this seat's own vans only.
+  vans, clamped 0…100. `you.stalled_pct` is the same quantity over this seat's own vans only.
+- **The window for both, exactly.** The accumulators reset at every turn boundary and the
+  statistics are recomputed every 48 ticks over whatever has accumulated *since that reset* —
+  the turn so far, not a rolling 240-tick window. Your view is built before the turn clock
+  advances, so the numbers you are handed at the start of a turn were measured inside the turn
+  that just played (its first 193 ticks; the last recompute of a turn lands 48 ticks before the
+  boundary). Mid-turn `heat` events carry the partial window they were computed over, which is
+  why the first one after a boundary reads low.
 - `hot_lanes` is at most eight lanes, worst `q` first, ties by lane id.
 
 **Hidden from a seat:** the per-fleet composition of any lane's queue (you see fourteen vans in that
