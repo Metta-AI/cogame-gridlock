@@ -10,7 +10,7 @@
 // player-controlled data and must never reach innerHTML.
 //
 // TWO NAME SPACES: the board and the seats only ever see the depot aliases
-// (Copper / Cobalt / Verde / Saffron). Real policy names appear in the
+// (Carbon / Oxygen / Germanium / Silicon). Real policy names appear in the
 // scorebug, the endcard and the feed — spectator side only — and nowhere
 // else.
 (function () {
@@ -487,20 +487,8 @@
         loop.classList.toggle('on', looping);
       };
     }
-    var zoomIn = el('zoom-in');
-    if (zoomIn) zoomIn.onclick = function () { core.zoomAt(1.4); };
-    var zoomOut = el('zoom-out');
-    if (zoomOut) zoomOut.onclick = function () { core.zoomAt(1 / 1.4); };
-    var slider = el('zoom-slider');
-    if (slider) {
-      slider.oninput = function () {
-        core.setZoom(Number(slider.value) || 1);
-        var read = el('zoom-read');
-        if (read) read.textContent = slider.value + '\u00d7';
-      };
-    }
-    var minimap = el('minimap-canvas');
-    if (minimap) core.attachMinimap(minimap);
+    // No zoom bar or minimap: the whole city fits the frame, so there is
+    // nothing off-screen to pan to.
     globalScope.addEventListener('resize', core.setViewportFit);
     buildSpeedChips();
     core.start();

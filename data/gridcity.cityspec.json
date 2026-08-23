@@ -47,7 +47,7 @@
     1,
     1
    ],
-   "alias": "Copper",
+   "alias": "Carbon",
    "colour": "#e07a3f"
   },
   {
@@ -56,7 +56,7 @@
     7,
     1
    ],
-   "alias": "Cobalt",
+   "alias": "Oxygen",
    "colour": "#4a8fe7"
   },
   {
@@ -65,7 +65,7 @@
     1,
     7
    ],
-   "alias": "Verde",
+   "alias": "Germanium",
    "colour": "#5fbf6a"
   },
   {
@@ -74,7 +74,7 @@
     7,
     7
    ],
-   "alias": "Saffron",
+   "alias": "Silicon",
    "colour": "#f2c14e"
   }
  ],

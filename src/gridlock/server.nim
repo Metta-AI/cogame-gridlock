@@ -14,7 +14,7 @@
 ## Player protocol (gridlock.player.v1), JSON text frames:
 ##   player -> game: {"type":"register","prompt":…,"scripted":…,"policy":…}
 ##   game -> player: {"type":"welcome",…}
-##                   {"type":"turn","turn":N,"tick":T,"fleet":"Copper",
+##                   {"type":"turn","turn":N,"tick":T,"fleet":"Carbon",
 ##                    "view":{…},"plan_source":"llm"}
 ##                   {"done":true,"result":{…}}
 ##

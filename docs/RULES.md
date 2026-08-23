@@ -18,7 +18,7 @@ Nobody controls the traffic lights.
 - The node grid is partitioned into a **3 × 3 district grid**, `NW N NE / W CENTRE E / SW S SE`.
   A district is how a policy names a place and how the view reports congestion.
 - **Four depots**, one per quadrant, on the mirror orbit of `(1,1)`:
-  `D0 (1,1) Copper`, `D1 (7,1) Cobalt`, `D2 (1,7) Verde`, `D3 (7,7) Saffron`.
+  `D0 (1,1) Carbon`, `D1 (7,1) Oxygen`, `D2 (1,7) Germanium`, `D3 (7,7) Silicon`.
   Alias and colour belong to the **depot**, never to the seat; the seat → depot permutation is drawn
   from the episode seed and re-drawn every episode.
 - **Signals** are fixed-time and identical everywhere: a 96-tick (4.0 s) cycle, north–south green for

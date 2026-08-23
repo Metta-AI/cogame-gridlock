@@ -59,7 +59,7 @@ const
   ReplayFormatVersion* = 1
 
   FleetAliases*: array[Seats, string] =
-    ["Copper", "Cobalt", "Verde", "Saffron"]
+    ["Carbon", "Oxygen", "Germanium", "Silicon"]
   FleetColours*: array[Seats, string] =
     ["#e07a3f", "#4a8fe7", "#5fbf6a", "#f2c14e"]
   DepotNodes*: array[Seats, array[2, int]] =

@@ -35,10 +35,10 @@ suite "gridcity":
       check depot.node == depotNode(i)
       check depot.alias == FleetAliases[i]
       check depot.colour == FleetColours[i]
-    check spec.depots[0].alias == "Copper"
-    check spec.depots[1].alias == "Cobalt"
-    check spec.depots[2].alias == "Verde"
-    check spec.depots[3].alias == "Saffron"
+    check spec.depots[0].alias == "Carbon"
+    check spec.depots[1].alias == "Oxygen"
+    check spec.depots[2].alias == "Germanium"
+    check spec.depots[3].alias == "Silicon"
 
   test "district names are the documented nine":
     check spec.districtNames == @["NW", "N", "NE", "W", "CENTRE", "E",

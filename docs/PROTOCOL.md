@@ -24,7 +24,7 @@ results. A seat that never registers, or registers with neither field, plays `di
 
 ```json
 {"type": "welcome", "protocol": "gridlock.player.v1", "slot": 0,
- "fleet": "Copper", "colour": "#e07a3f", "turns": 20, "turn_seconds": 10}
+ "fleet": "Carbon", "colour": "#e07a3f", "turns": 20, "turn_seconds": 10}
 ```
 
 ### Turn (informational — the seat is not required to answer)
@@ -33,7 +33,7 @@ Decisions are made in the game server, which composes this seat's prompt plus th
 model for one routing plan.
 
 ```json
-{"type": "turn", "turn": 7, "tick": 1680, "fleet": "Copper",
+{"type": "turn", "turn": 7, "tick": 1680, "fleet": "Carbon",
  "view": { … }, "plan_source": "llm"}
 ```
 
@@ -41,7 +41,7 @@ model for one routing plan.
 
 ```json
 {"turn": 7, "of": 20, "tick": 1680, "ticks_left": 3120, "seconds_left": 130.0,
- "you": {"fleet": "Copper", "colour": "#e07a3f", "depot": [1, 1], "depot_district": [0, 0],
+ "you": {"fleet": "Carbon", "colour": "#e07a3f", "depot": [1, 1], "depot_district": [0, 0],
          "vans": 50, "docked": 9, "loading": 2, "waiting_dispatch": 6,
          "on_road_loaded": 21, "on_road_empty": 12, "stalled": 7,
          "delivered": 61, "delivered_last_turn": 9, "backlog": 23,
@@ -56,7 +56,7 @@ model for one routing plan.
           "districts_heat": ["347", "596", "263"],
           "hot_lanes": [{"from": [4, 3], "to": [4, 4], "class": "arterial",
                          "q": 14, "cap": 14, "blocked_s": 8.5}, … up to 8, worst first … ]},
- "fleets": [{"fleet": "Copper", "delivered": 61, "on_road": 33}, … all four, fixed alias order … ],
+ "fleets": [{"fleet": "Carbon", "delivered": 61, "on_road": 33}, … all four, fixed alias order … ],
  "events_last_turn": ["gridlock in CENTRE", "jam on 4,3->4,4"]}
 ```
 

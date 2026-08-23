@@ -22,8 +22,7 @@ let chrome = readSource("client/chrome_common.js")
 const InheritedChromeIds = [
   "viewport", "stage", "board", "lightpool", "grain", "chrome", "scorebug",
   "plates-l", "plates-r", "clock", "clock-time", "clock-caption",
-  "ffwd-mini", "viewpanel", "minimap", "minimap-canvas", "zoombar",
-  "zoom-out", "zoom-slider", "zoom-in", "zoom-read", "mmwarn", "bannerlane",
+  "ffwd-mini", "mmwarn", "bannerlane",
   "killfeed", "transport", "btn-restart", "btn-back", "btn-play", "btn-fwd",
   "btn-end", "btn-loop", "btn-skip", "btn-spoilers", "ffwd-chip", "win-chip",
   "tick-clock", "speedchips", "scrub", "momentum", "scrub-fill", "lulls",
@@ -146,6 +145,13 @@ suite "chrome":
       check page.contains("id=\"" & id & "\"")
     for id in ["fpv", "flagicon", "lives", "squadpips", "killicon"]:
       check not page.contains("id=\"" & id & "\"")
+    ## The city fits the frame: the starter's zoom bar + minimap are dropped,
+    ## not hidden, and nothing wires the zoom API.
+    for id in ["viewpanel", "minimap", "minimap-canvas", "zoombar", "zoom-out",
+               "zoom-slider", "zoom-in", "zoom-read"]:
+      check not page.contains("id=\"" & id & "\"")
+    check not chrome.contains("core.zoomAt")
+    check not chrome.contains("core.attachMinimap")
 
   test "a gridlock event drives #jamflash, not only the canvas":
     ## The district rectangle is drawn on the board canvas because only the
@@ -201,7 +207,6 @@ suite "chrome":
     let index = page.find("@media (max-width: 640px)")
     let narrow = page[index ..< min(page.len, index + 900)]
     check narrow.contains("#planbar{display:none}")
-    check narrow.contains("#viewpanel{display:none}")
     check narrow.contains(".chiplabel{display:none}")
     check page.contains("--hudscale")
     check page.contains("--u:")
@@ -229,8 +234,8 @@ suite "chrome":
 
   test "the bundle's art list is what the build hook copies":
     for asset in ["asphalt.jpg", "intersection.png", "block_park.png",
-        "plaza.png", "depot_copper.png", "depot_cobalt.png",
-        "depot_verde.png", "depot_saffron.png", "van.png", "van_loaded.png",
+        "plaza.png", "depot_carbon.png", "depot_oxygen.png",
+        "depot_germanium.png", "depot_silicon.png", "van.png", "van_loaded.png",
         "parcel_pin.png"]:
       check fileExists("client/art/" & asset)
       check core.contains(asset)
