@@ -304,6 +304,11 @@ proc decideAll*(client: LlmClient, seats: array[Seats, SeatRequest]):
         (if seats[seat].scripted == skNone: skDispatcher
          else: seats[seat].scripted))
       if seats[seat].scripted == skNone and client.disabled:
+        ## An LLM seat with no credentials IS a fallback: the note lists
+        ## `no_credentials` among the fallback causes, and recording the plan
+        ## as plain `scripted` would leave `results.fallback_turns` at zero
+        ## for a seat that never once played its own policy.
+        result.plans[seat].source = psFallback
         result.fallbacks.add(FallbackRecord(seat: seat, attempt: 1,
           cause: fcNoCredentials, detail: "no LLM credentials"))
     else:

@@ -124,6 +124,27 @@ suite "one parallel batch per turn":
         check event.body["latency_ms"].getInt() >= 30
     check planEvents == Seats
 
+  test "a credential-less LLM seat records a fallback, not a scripted plan":
+    ## No credentials is one of the note's fallback causes. The plan is the
+    ## dispatcher plan either way; what this pins is that it is RECORDED as a
+    ## fallback, so phase 60 can count the seats that never played their own
+    ## policy.
+    let client = newOfflineLlmClient(nil)
+    client.disabled = true
+    var game = newTestSim(960)
+    let decision = client.decideAll(seatRequests(game,
+      kindsOf(skNone, skDispatcher, skNone, skBeeline)))
+    check decision.llmSeats == 0
+    check decision.fallbacks.len == 2
+    for record in decision.fallbacks:
+      check record.cause == fcNoCredentials
+    check decision.plans[0].source == psFallback
+    check decision.plans[2].source == psFallback
+    ## A seat that ASKED for a baseline is not a fallback: it is playing what
+    ## it registered.
+    check decision.plans[1].source == psScripted
+    check decision.plans[3].source == psScripted
+
   test "a hung client is bounded by the two attempt deadlines":
     ## The fake reports a timeout rather than actually hanging; what the test
     ## pins is that decideAll makes at most two attempts and always returns.
