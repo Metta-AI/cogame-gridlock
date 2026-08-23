@@ -1,7 +1,7 @@
 ## Sim unit tests on movement, capacity and spillback — plus the source guard
 ## that keeps the step path integer-only.
 
-import std/[strutils, unittest]
+import std/[os, strutils, unittest]
 import support/helpers
 
 const StepPathModules = [
@@ -177,6 +177,20 @@ suite "intersection service":
     check game.vehicles[0].cell == cells - 1
 
 suite "no floats in the step path":
+  test "no transcendental call reaches ANY sim module":
+    ## The note's guard is over `src/gridlock/*.nim`, not just the three
+    ## step-path modules: the ban on transcendentals is what keeps the native
+    ## and emscripten builds bit-identical, and it holds for every module the
+    ## step can reach.
+    var scanned = 0
+    for path in walkFiles("src/gridlock/*.nim"):
+      inc scanned
+      let source = stripComments(readSource(path))
+      for banned in BannedCalls:
+        checkpoint(path & ": " & banned)
+        check not containsCall(source, banned)
+    check scanned >= 19
+
   test "no transcendental call reaches a step-path module":
     for path in StepPathModules:
       let source = stripComments(readSource(path))
