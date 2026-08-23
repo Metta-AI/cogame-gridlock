@@ -1,0 +1,2041 @@
+{
+  "harness": "tools/tune_baselines.nim",
+  "seeds": [
+    42,
+    7,
+    1234
+  ],
+  "validation_seeds": [
+    5,
+    77,
+    2026
+  ],
+  "margin_pct": 1,
+  "episode_ticks": 4800,
+  "loads": [
+    {
+      "name": "default",
+      "fleet_size": 50,
+      "order_period_ticks": 24,
+      "backlog_max": 80
+    },
+    {
+      "name": "rush",
+      "fleet_size": 50,
+      "order_period_ticks": 12,
+      "backlog_max": 80
+    },
+    {
+      "name": "stress",
+      "fleet_size": 200,
+      "order_period_ticks": 6,
+      "backlog_max": 400
+    }
+  ],
+  "metric": "total parcels delivered by four dispatcher seats, summed over every load and seed",
+  "tie_break": "the incumbent keeps a tie and any win under the margin on either seed set",
+  "beeline_reference": 8395,
+  "shipped": 14865,
+  "shipped_held_out": 14868,
+  "challengers": [
+    {
+      "label": "weightMin=45",
+      "tuning_seeds_total": 14939,
+      "held_out_total": 14890
+    },
+    {
+      "label": "spreadCalm=60",
+      "tuning_seeds_total": 14931,
+      "held_out_total": 14911
+    },
+    {
+      "label": "avoidDigit=5",
+      "tuning_seeds_total": 14929,
+      "held_out_total": 14907
+    },
+    {
+      "label": "weightMin=0",
+      "tuning_seeds_total": 14925,
+      "held_out_total": 14904
+    },
+    {
+      "label": "w30 d30 p35 s 40",
+      "tuning_seeds_total": 14924,
+      "held_out_total": 14907
+    }
+  ],
+  "winner": {
+    "label": "shipped (incumbent)",
+    "total": 14865,
+    "held_out_total": 14868,
+    "tuning": {
+      "weightBase": 30,
+      "weightMin": 30,
+      "weightMax": 95,
+      "patienceJam": 40,
+      "patienceCalm": 60,
+      "patienceJammed": 35,
+      "dispatchJam1": 35,
+      "dispatchJam2": 55,
+      "dispatchJam3": 75,
+      "dispatchCalm": 100,
+      "dispatchBusy": 80,
+      "dispatchHeavy": 60,
+      "dispatchSevere": 45,
+      "spreadJam": 45,
+      "spreadCalm": 40,
+      "spreadJammed": 80,
+      "avoidDigit": 7,
+      "farBacklog": 55
+    }
+  },
+  "grid": [
+    {
+      "label": "w15 d30 p35 s 40",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d30 p35 s 80",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d30 p35 s100",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d45 p35 s 40",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d45 p35 s 80",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d45 p35 s100",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d60 p35 s 40",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d60 p35 s 80",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d60 p35 s100",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d30 p35 s 40",
+      "delivered": [
+        2210,
+        3944,
+        8770
+      ],
+      "total": 14924,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d30 p35 s 80",
+      "delivered": [
+        2210,
+        3944,
+        8770
+      ],
+      "total": 14924,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d30 p35 s100",
+      "delivered": [
+        2210,
+        3944,
+        8770
+      ],
+      "total": 14924,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d45 p35 s 40",
+      "delivered": [
+        2210,
+        3944,
+        8770
+      ],
+      "total": 14924,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d45 p35 s 80",
+      "delivered": [
+        2210,
+        3944,
+        8770
+      ],
+      "total": 14924,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d45 p35 s100",
+      "delivered": [
+        2210,
+        3944,
+        8770
+      ],
+      "total": 14924,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d60 p35 s 40",
+      "delivered": [
+        2210,
+        3944,
+        8770
+      ],
+      "total": 14924,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d60 p35 s 80",
+      "delivered": [
+        2210,
+        3944,
+        8770
+      ],
+      "total": 14924,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d60 p35 s100",
+      "delivered": [
+        2210,
+        3944,
+        8770
+      ],
+      "total": 14924,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d30 p60 s 40",
+      "delivered": [
+        2215,
+        3943,
+        8759
+      ],
+      "total": 14917,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d30 p60 s 80",
+      "delivered": [
+        2215,
+        3943,
+        8759
+      ],
+      "total": 14917,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d30 p60 s100",
+      "delivered": [
+        2215,
+        3943,
+        8759
+      ],
+      "total": 14917,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d45 p60 s 40",
+      "delivered": [
+        2215,
+        3943,
+        8759
+      ],
+      "total": 14917,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d45 p60 s 80",
+      "delivered": [
+        2215,
+        3943,
+        8759
+      ],
+      "total": 14917,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d45 p60 s100",
+      "delivered": [
+        2215,
+        3943,
+        8759
+      ],
+      "total": 14917,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d60 p60 s 40",
+      "delivered": [
+        2215,
+        3943,
+        8759
+      ],
+      "total": 14917,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d60 p60 s 80",
+      "delivered": [
+        2215,
+        3943,
+        8759
+      ],
+      "total": 14917,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d60 p60 s100",
+      "delivered": [
+        2215,
+        3943,
+        8759
+      ],
+      "total": 14917,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d30 p35 s 40",
+      "delivered": [
+        2211,
+        3931,
+        8765
+      ],
+      "total": 14907,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d30 p35 s 80",
+      "delivered": [
+        2211,
+        3931,
+        8765
+      ],
+      "total": 14907,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d30 p35 s100",
+      "delivered": [
+        2211,
+        3931,
+        8765
+      ],
+      "total": 14907,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d45 p35 s 40",
+      "delivered": [
+        2211,
+        3931,
+        8765
+      ],
+      "total": 14907,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d45 p35 s 80",
+      "delivered": [
+        2211,
+        3931,
+        8765
+      ],
+      "total": 14907,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d45 p35 s100",
+      "delivered": [
+        2211,
+        3931,
+        8765
+      ],
+      "total": 14907,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d60 p35 s 40",
+      "delivered": [
+        2211,
+        3931,
+        8765
+      ],
+      "total": 14907,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d60 p35 s 80",
+      "delivered": [
+        2211,
+        3931,
+        8765
+      ],
+      "total": 14907,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d60 p35 s100",
+      "delivered": [
+        2211,
+        3931,
+        8765
+      ],
+      "total": 14907,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d30 p35 s 40",
+      "delivered": [
+        2214,
+        3941,
+        8742
+      ],
+      "total": 14897,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d30 p35 s 80",
+      "delivered": [
+        2214,
+        3941,
+        8742
+      ],
+      "total": 14897,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d30 p35 s100",
+      "delivered": [
+        2214,
+        3941,
+        8742
+      ],
+      "total": 14897,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d45 p35 s 40",
+      "delivered": [
+        2214,
+        3941,
+        8742
+      ],
+      "total": 14897,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d45 p35 s 80",
+      "delivered": [
+        2214,
+        3941,
+        8742
+      ],
+      "total": 14897,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d45 p35 s100",
+      "delivered": [
+        2214,
+        3941,
+        8742
+      ],
+      "total": 14897,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d60 p35 s 40",
+      "delivered": [
+        2214,
+        3941,
+        8742
+      ],
+      "total": 14897,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d60 p35 s 80",
+      "delivered": [
+        2214,
+        3941,
+        8742
+      ],
+      "total": 14897,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d60 p35 s100",
+      "delivered": [
+        2214,
+        3941,
+        8742
+      ],
+      "total": 14897,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d30 p85 s 40",
+      "delivered": [
+        2215,
+        3942,
+        8733
+      ],
+      "total": 14890,
+      "stress_jam_index_mean": 34,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d30 p85 s 80",
+      "delivered": [
+        2215,
+        3942,
+        8733
+      ],
+      "total": 14890,
+      "stress_jam_index_mean": 34,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d30 p85 s100",
+      "delivered": [
+        2215,
+        3942,
+        8733
+      ],
+      "total": 14890,
+      "stress_jam_index_mean": 34,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d45 p85 s 40",
+      "delivered": [
+        2215,
+        3942,
+        8733
+      ],
+      "total": 14890,
+      "stress_jam_index_mean": 34,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d45 p85 s 80",
+      "delivered": [
+        2215,
+        3942,
+        8733
+      ],
+      "total": 14890,
+      "stress_jam_index_mean": 34,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d45 p85 s100",
+      "delivered": [
+        2215,
+        3942,
+        8733
+      ],
+      "total": 14890,
+      "stress_jam_index_mean": 34,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d60 p85 s 40",
+      "delivered": [
+        2215,
+        3942,
+        8733
+      ],
+      "total": 14890,
+      "stress_jam_index_mean": 34,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d60 p85 s 80",
+      "delivered": [
+        2215,
+        3942,
+        8733
+      ],
+      "total": 14890,
+      "stress_jam_index_mean": 34,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w 0 d60 p85 s100",
+      "delivered": [
+        2215,
+        3942,
+        8733
+      ],
+      "total": 14890,
+      "stress_jam_index_mean": 34,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d30 p60 s 40",
+      "delivered": [
+        2212,
+        3943,
+        8734
+      ],
+      "total": 14889,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d30 p60 s 80",
+      "delivered": [
+        2212,
+        3943,
+        8734
+      ],
+      "total": 14889,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d30 p60 s100",
+      "delivered": [
+        2212,
+        3943,
+        8734
+      ],
+      "total": 14889,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d45 p60 s 40",
+      "delivered": [
+        2212,
+        3943,
+        8734
+      ],
+      "total": 14889,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d45 p60 s 80",
+      "delivered": [
+        2212,
+        3943,
+        8734
+      ],
+      "total": 14889,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d45 p60 s100",
+      "delivered": [
+        2212,
+        3943,
+        8734
+      ],
+      "total": 14889,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d60 p60 s 40",
+      "delivered": [
+        2212,
+        3943,
+        8734
+      ],
+      "total": 14889,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d60 p60 s 80",
+      "delivered": [
+        2212,
+        3943,
+        8734
+      ],
+      "total": 14889,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d60 p60 s100",
+      "delivered": [
+        2212,
+        3943,
+        8734
+      ],
+      "total": 14889,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d30 p35 s 40",
+      "delivered": [
+        2208,
+        3931,
+        8750
+      ],
+      "total": 14889,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d30 p35 s 80",
+      "delivered": [
+        2208,
+        3931,
+        8750
+      ],
+      "total": 14889,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d30 p35 s100",
+      "delivered": [
+        2208,
+        3931,
+        8750
+      ],
+      "total": 14889,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d45 p35 s 40",
+      "delivered": [
+        2208,
+        3931,
+        8750
+      ],
+      "total": 14889,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d45 p35 s 80",
+      "delivered": [
+        2208,
+        3931,
+        8750
+      ],
+      "total": 14889,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d45 p35 s100",
+      "delivered": [
+        2208,
+        3931,
+        8750
+      ],
+      "total": 14889,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d60 p35 s 40",
+      "delivered": [
+        2208,
+        3931,
+        8750
+      ],
+      "total": 14889,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d60 p35 s 80",
+      "delivered": [
+        2208,
+        3931,
+        8750
+      ],
+      "total": 14889,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d60 p35 s100",
+      "delivered": [
+        2208,
+        3931,
+        8750
+      ],
+      "total": 14889,
+      "stress_jam_index_mean": 30,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d30 p85 s 40",
+      "delivered": [
+        2212,
+        3943,
+        8724
+      ],
+      "total": 14879,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d30 p85 s 80",
+      "delivered": [
+        2212,
+        3943,
+        8724
+      ],
+      "total": 14879,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d30 p85 s100",
+      "delivered": [
+        2212,
+        3943,
+        8724
+      ],
+      "total": 14879,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d45 p85 s 40",
+      "delivered": [
+        2212,
+        3943,
+        8724
+      ],
+      "total": 14879,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d45 p85 s 80",
+      "delivered": [
+        2212,
+        3943,
+        8724
+      ],
+      "total": 14879,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d45 p85 s100",
+      "delivered": [
+        2212,
+        3943,
+        8724
+      ],
+      "total": 14879,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d60 p85 s 40",
+      "delivered": [
+        2212,
+        3943,
+        8724
+      ],
+      "total": 14879,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d60 p85 s 80",
+      "delivered": [
+        2212,
+        3943,
+        8724
+      ],
+      "total": 14879,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w15 d60 p85 s100",
+      "delivered": [
+        2212,
+        3943,
+        8724
+      ],
+      "total": 14879,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d30 p60 s 40",
+      "delivered": [
+        2212,
+        3936,
+        8719
+      ],
+      "total": 14867,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d30 p60 s 80",
+      "delivered": [
+        2212,
+        3936,
+        8719
+      ],
+      "total": 14867,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d30 p60 s100",
+      "delivered": [
+        2212,
+        3936,
+        8719
+      ],
+      "total": 14867,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d45 p60 s 40",
+      "delivered": [
+        2212,
+        3936,
+        8719
+      ],
+      "total": 14867,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d45 p60 s 80",
+      "delivered": [
+        2212,
+        3936,
+        8719
+      ],
+      "total": 14867,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d45 p60 s100",
+      "delivered": [
+        2212,
+        3936,
+        8719
+      ],
+      "total": 14867,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d60 p60 s 40",
+      "delivered": [
+        2212,
+        3936,
+        8719
+      ],
+      "total": 14867,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d60 p60 s 80",
+      "delivered": [
+        2212,
+        3936,
+        8719
+      ],
+      "total": 14867,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d60 p60 s100",
+      "delivered": [
+        2212,
+        3936,
+        8719
+      ],
+      "total": 14867,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d30 p60 s 40",
+      "delivered": [
+        2209,
+        3947,
+        8709
+      ],
+      "total": 14865,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d30 p60 s 80",
+      "delivered": [
+        2209,
+        3947,
+        8709
+      ],
+      "total": 14865,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d30 p60 s100",
+      "delivered": [
+        2209,
+        3947,
+        8709
+      ],
+      "total": 14865,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d45 p60 s 40",
+      "delivered": [
+        2209,
+        3947,
+        8709
+      ],
+      "total": 14865,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d45 p60 s 80",
+      "delivered": [
+        2209,
+        3947,
+        8709
+      ],
+      "total": 14865,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d45 p60 s100",
+      "delivered": [
+        2209,
+        3947,
+        8709
+      ],
+      "total": 14865,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d60 p60 s 40",
+      "delivered": [
+        2209,
+        3947,
+        8709
+      ],
+      "total": 14865,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d60 p60 s 80",
+      "delivered": [
+        2209,
+        3947,
+        8709
+      ],
+      "total": 14865,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d60 p60 s100",
+      "delivered": [
+        2209,
+        3947,
+        8709
+      ],
+      "total": 14865,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d30 p85 s 40",
+      "delivered": [
+        2209,
+        3947,
+        8678
+      ],
+      "total": 14834,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d30 p85 s 80",
+      "delivered": [
+        2209,
+        3947,
+        8678
+      ],
+      "total": 14834,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d30 p85 s100",
+      "delivered": [
+        2209,
+        3947,
+        8678
+      ],
+      "total": 14834,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d45 p85 s 40",
+      "delivered": [
+        2209,
+        3947,
+        8678
+      ],
+      "total": 14834,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d45 p85 s 80",
+      "delivered": [
+        2209,
+        3947,
+        8678
+      ],
+      "total": 14834,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d45 p85 s100",
+      "delivered": [
+        2209,
+        3947,
+        8678
+      ],
+      "total": 14834,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d60 p85 s 40",
+      "delivered": [
+        2209,
+        3947,
+        8678
+      ],
+      "total": 14834,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d60 p85 s 80",
+      "delivered": [
+        2209,
+        3947,
+        8678
+      ],
+      "total": 14834,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w30 d60 p85 s100",
+      "delivered": [
+        2209,
+        3947,
+        8678
+      ],
+      "total": 14834,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d30 p60 s 40",
+      "delivered": [
+        2210,
+        3928,
+        8692
+      ],
+      "total": 14830,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d30 p60 s 80",
+      "delivered": [
+        2210,
+        3928,
+        8692
+      ],
+      "total": 14830,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d30 p60 s100",
+      "delivered": [
+        2210,
+        3928,
+        8692
+      ],
+      "total": 14830,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d45 p60 s 40",
+      "delivered": [
+        2210,
+        3928,
+        8692
+      ],
+      "total": 14830,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d45 p60 s 80",
+      "delivered": [
+        2210,
+        3928,
+        8692
+      ],
+      "total": 14830,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d45 p60 s100",
+      "delivered": [
+        2210,
+        3928,
+        8692
+      ],
+      "total": 14830,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d60 p60 s 40",
+      "delivered": [
+        2210,
+        3928,
+        8692
+      ],
+      "total": 14830,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d60 p60 s 80",
+      "delivered": [
+        2210,
+        3928,
+        8692
+      ],
+      "total": 14830,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d60 p60 s100",
+      "delivered": [
+        2210,
+        3928,
+        8692
+      ],
+      "total": 14830,
+      "stress_jam_index_mean": 32,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d30 p85 s 40",
+      "delivered": [
+        2212,
+        3936,
+        8661
+      ],
+      "total": 14809,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d30 p85 s 80",
+      "delivered": [
+        2212,
+        3936,
+        8661
+      ],
+      "total": 14809,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d30 p85 s100",
+      "delivered": [
+        2212,
+        3936,
+        8661
+      ],
+      "total": 14809,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d45 p85 s 40",
+      "delivered": [
+        2212,
+        3936,
+        8661
+      ],
+      "total": 14809,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d45 p85 s 80",
+      "delivered": [
+        2212,
+        3936,
+        8661
+      ],
+      "total": 14809,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d45 p85 s100",
+      "delivered": [
+        2212,
+        3936,
+        8661
+      ],
+      "total": 14809,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d60 p85 s 40",
+      "delivered": [
+        2212,
+        3936,
+        8661
+      ],
+      "total": 14809,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d60 p85 s 80",
+      "delivered": [
+        2212,
+        3936,
+        8661
+      ],
+      "total": 14809,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w45 d60 p85 s100",
+      "delivered": [
+        2212,
+        3936,
+        8661
+      ],
+      "total": 14809,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d30 p85 s 40",
+      "delivered": [
+        2210,
+        3928,
+        8665
+      ],
+      "total": 14803,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d30 p85 s 80",
+      "delivered": [
+        2210,
+        3928,
+        8665
+      ],
+      "total": 14803,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d30 p85 s100",
+      "delivered": [
+        2210,
+        3928,
+        8665
+      ],
+      "total": 14803,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d45 p85 s 40",
+      "delivered": [
+        2210,
+        3928,
+        8665
+      ],
+      "total": 14803,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d45 p85 s 80",
+      "delivered": [
+        2210,
+        3928,
+        8665
+      ],
+      "total": 14803,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d45 p85 s100",
+      "delivered": [
+        2210,
+        3928,
+        8665
+      ],
+      "total": 14803,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d60 p85 s 40",
+      "delivered": [
+        2210,
+        3928,
+        8665
+      ],
+      "total": 14803,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d60 p85 s 80",
+      "delivered": [
+        2210,
+        3928,
+        8665
+      ],
+      "total": 14803,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "w60 d60 p85 s100",
+      "delivered": [
+        2210,
+        3928,
+        8665
+      ],
+      "total": 14803,
+      "stress_jam_index_mean": 33,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "weightMin=45",
+      "delivered": [
+        2215,
+        3953,
+        8771
+      ],
+      "total": 14939,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "spreadCalm=60",
+      "delivered": [
+        2212,
+        3945,
+        8774
+      ],
+      "total": 14931,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "avoidDigit=5",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "avoidDigit=6",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "avoidDigit=7",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "avoidDigit=8",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "dispatchBusy=80",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "dispatchBusy=90",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "dispatchHeavy=45",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "dispatchHeavy=60",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "dispatchHeavy=75",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "dispatchJam1=35",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "dispatchJam1=45",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "dispatchJam2=45",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "dispatchJam2=55",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "dispatchJam2=65",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "dispatchJam3=65",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "dispatchJam3=75",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "dispatchJam3=85",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "farBacklog=55",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "farBacklog=70",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "patienceJam=30",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "patienceJam=40",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "patienceJam=50",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "patienceJammed=15",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "patienceJammed=35",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "patienceJammed=55",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "spreadCalm=20",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "spreadCalm=40",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "spreadJam=35",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "spreadJam=45",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "spreadJam=55",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "weightMax=100",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "weightMax=75",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "weightMax=85",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "weightMax=95",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "weightMin=30",
+      "delivered": [
+        2212,
+        3945,
+        8772
+      ],
+      "total": 14929,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "weightMin=0",
+      "delivered": [
+        2212,
+        3953,
+        8760
+      ],
+      "total": 14925,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "weightMin=15",
+      "delivered": [
+        2212,
+        3953,
+        8760
+      ],
+      "total": 14925,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "dispatchBusy=70",
+      "delivered": [
+        2212,
+        3945,
+        8762
+      ],
+      "total": 14919,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "farBacklog=40",
+      "delivered": [
+        2212,
+        3808,
+        8772
+      ],
+      "total": 14792,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    },
+    {
+      "label": "dispatchJam1=25",
+      "delivered": [
+        2212,
+        3194,
+        8772
+      ],
+      "total": 14178,
+      "stress_jam_index_mean": 31,
+      "stress_gridlock_events": 0
+    }
+  ]
+}

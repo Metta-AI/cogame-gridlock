@@ -78,6 +78,18 @@ If you touch the results document, edit `coworld_manifest_template.json`'s
 `results_schema` in the same commit: `tests/test_manifest.nim` asserts the two
 key sets are equal.
 
+If you change a `dispatcher` constant, change it in `DispatcherTuning`'s
+default and re-run the grid harness:
+
+```bash
+nim c -d:release --path:src -o:tune tools/tune_baselines.nim
+./tune        > tools/tuning/dispatcher_grid.md
+./tune --json > tools/tuning/dispatcher_grid.json
+```
+
+`tests/test_baselines.nim` asserts the shipped tuning is the tuning that grid
+picked, so a hand-edited constant the sweep never chose fails the tests.
+
 If you touch `README.md`, `docs/RULES.md` or `docs/PROTOCOL.md`, regenerate the
 manifest (`python3 scripts/make_manifest.py`): the manifest inlines all three
 as `game.docs` and the test asserts they match byte for byte.

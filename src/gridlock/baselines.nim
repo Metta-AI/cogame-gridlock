@@ -21,6 +21,30 @@ type
     skDispatcher = "dispatcher"
     skBeeline = "beeline"
 
+  DispatcherTuning* = object
+    ## Every constant in the `dispatcher` rule, named so `tools/tune_baselines`
+    ## can sweep the real baseline rather than a copy of it.
+    ## `DefaultDispatcherTuning` below is what ships; the grid that chose it is
+    ## `tools/tuning/dispatcher_grid.md`.
+    weightBase*: int          ## congestion_weight = clamp(weightBase + jam, …)
+    weightMin*, weightMax*: int
+    patienceJam*: int         ## jam index at which patience drops
+    patienceCalm*, patienceJammed*: int
+    dispatchJam1*, dispatchJam2*, dispatchJam3*: int
+    dispatchCalm*, dispatchBusy*, dispatchHeavy*, dispatchSevere*: int
+    spreadJam*: int           ## jam index at which departures stagger
+    spreadCalm*, spreadJammed*: int
+    avoidDigit*: int          ## district digit that earns an `avoid`
+    farBacklog*: int          ## backlog above which `far` parcels are taken
+
+const DefaultDispatcherTuning* = DispatcherTuning(
+  weightBase: 30, weightMin: 30, weightMax: 95,
+  patienceJam: 40, patienceCalm: 60, patienceJammed: 35,
+  dispatchJam1: 35, dispatchJam2: 55, dispatchJam3: 75,
+  dispatchCalm: 100, dispatchBusy: 80, dispatchHeavy: 60, dispatchSevere: 45,
+  spreadJam: 45, spreadCalm: 40, spreadJammed: 80,
+  avoidDigit: 7, farBacklog: 55)
+
 proc parseScriptKind*(text: string): ScriptKind =
   ## PLAYER_SCRIPTED values, bullwhip's `parseScriptKind` shape.
   case strutils.strip(text).toLowerAscii()
@@ -31,22 +55,27 @@ proc parseScriptKind*(text: string): ScriptKind =
 proc clampTo(value, lo, hi: int): int =
   if value < lo: lo elif value > hi: hi else: value
 
-proc dispatcherPlan*(input: BaselineInput): RoutingPlan =
+proc dispatcherPlan*(input: BaselineInput,
+    tuning = DefaultDispatcherTuning): RoutingPlan =
   let jam = clampTo(input.jamIndex, 0, 100)
   result = defaultPlan()
   result.source = psScripted
-  result.congestionWeight = clampTo(30 + jam, 30, 95)
-  result.patience = if jam < 40: 60 else: 35
+  result.congestionWeight =
+    clampTo(tuning.weightBase + jam, tuning.weightMin, tuning.weightMax)
+  result.patience =
+    if jam < tuning.patienceJam: tuning.patienceCalm
+    else: tuning.patienceJammed
   result.dispatch =
-    if jam < 35: 100
-    elif jam < 55: 80
-    elif jam < 75: 60
-    else: 45
-  result.spread = if jam < 45: 40 else: 80
+    if jam < tuning.dispatchJam1: tuning.dispatchCalm
+    elif jam < tuning.dispatchJam2: tuning.dispatchBusy
+    elif jam < tuning.dispatchJam3: tuning.dispatchHeavy
+    else: tuning.dispatchSevere
+  result.spread =
+    if jam < tuning.spreadJam: tuning.spreadCalm else: tuning.spreadJammed
   result.corridor = -1
   let hot = hottestDistrict(input.digits)
   var avoid = -1
-  if input.digits[hot] >= 7 and hot != input.depotDistrict:
+  if input.digits[hot] >= tuning.avoidDigit and hot != input.depotDistrict:
     var clash = false
     for d in input.nextDestDistricts:
       if d == hot:
@@ -55,7 +84,8 @@ proc dispatcherPlan*(input: BaselineInput): RoutingPlan =
     if not clash:
       avoid = hot
   result.avoid = avoid
-  result.priority = if input.backlog > 55: prFar else: prNear
+  result.priority =
+    if input.backlog > tuning.farBacklog: prFar else: prNear
   result.note = cleanLine("dispatcher: jam=" & $jam & " dispatch=" &
     $result.dispatch & " avoid=" &
     (if avoid < 0: "-" else: districtName(avoid)), MaxNoteRunes)

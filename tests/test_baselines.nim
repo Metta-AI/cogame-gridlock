@@ -1,7 +1,7 @@
 ## The bounded-orders / legality assertion on the scripted baselines, and the
 ## ordering that gives the ladder a spread.
 
-import std/[unicode, unittest]
+import std/[json, tables, unicode, unittest]
 import support/helpers
 
 proc randomInput(rng: var Pcg32): BaselineInput =
@@ -112,6 +112,58 @@ suite "bounded, legal orders":
     check parseScriptKind(" Beeline ") == skBeeline
     check parseScriptKind("") == skNone
     check parseScriptKind("nonsense") == skNone
+
+suite "the shipped tuning is the grid's tuning":
+  ## `tools/tune_baselines.nim` sweeps every constant in `dispatcherPlan`
+  ## across three loads x three seeds and validates its challengers on three
+  ## held-out seeds; `tools/tuning/dispatcher_grid.{md,json}` is that run.
+  ## This is what keeps the two in step: a hand-edited constant that the grid
+  ## never chose fails here.
+  let grid = parseJson(readSource("tools/tuning/dispatcher_grid.json"))
+
+  test "every shipped constant is the one the committed grid picked":
+    let winner = grid["winner"]["tuning"]
+    let shipped = DefaultDispatcherTuning
+    check winner["weightBase"].getInt() == shipped.weightBase
+    check winner["weightMin"].getInt() == shipped.weightMin
+    check winner["weightMax"].getInt() == shipped.weightMax
+    check winner["patienceJam"].getInt() == shipped.patienceJam
+    check winner["patienceCalm"].getInt() == shipped.patienceCalm
+    check winner["patienceJammed"].getInt() == shipped.patienceJammed
+    check winner["dispatchJam1"].getInt() == shipped.dispatchJam1
+    check winner["dispatchJam2"].getInt() == shipped.dispatchJam2
+    check winner["dispatchJam3"].getInt() == shipped.dispatchJam3
+    check winner["dispatchCalm"].getInt() == shipped.dispatchCalm
+    check winner["dispatchBusy"].getInt() == shipped.dispatchBusy
+    check winner["dispatchHeavy"].getInt() == shipped.dispatchHeavy
+    check winner["dispatchSevere"].getInt() == shipped.dispatchSevere
+    check winner["spreadJam"].getInt() == shipped.spreadJam
+    check winner["spreadCalm"].getInt() == shipped.spreadCalm
+    check winner["spreadJammed"].getInt() == shipped.spreadJammed
+    check winner["avoidDigit"].getInt() == shipped.avoidDigit
+    check winner["farBacklog"].getInt() == shipped.farBacklog
+
+  test "the grid actually swept, and the baselines are ordered in it":
+    check grid["grid"].len >= 135
+    check grid["seeds"].len >= 3
+    check grid["loads"].len >= 3
+    ## Held-out seeds are disjoint from the tuning seeds, or the sweep is
+    ## validating on what it fitted.
+    for seed in grid["validation_seeds"]:
+      check seed notin grid["seeds"].elems
+    ## And the grid records the thesis the ladder rests on: four greedy
+    ## fleets deliver far less than four metered ones.
+    check grid["beeline_reference"].getInt() < grid["shipped"].getInt()
+
+  test "the shipped values beat the grid's neighbours where it discriminates":
+    ## Not every constant moves the score — 200 vans cannot fill 288 lanes,
+    ## so the deep-jam half of the ladder is inert at the shipped scale and
+    ## the grid says so. These two do move it, and the shipped value wins.
+    var scores: Table[string, int]
+    for row in grid["grid"]:
+      scores[row["label"].getStr()] = row["total"].getInt()
+    check scores["dispatchJam1=25"] < grid["shipped"].getInt()
+    check scores["farBacklog=40"] < grid["shipped"].getInt()
 
 suite "the baselines are ordered, and greed costs the city":
   ## Rush-hour demand — an order every 12 ticks, exactly the `rush` variant's
