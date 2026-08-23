@@ -133,7 +133,7 @@ proc seatRequestsLocked(gs: GameState): array[Seats, SeatRequest] =
       prompt: gs.seats.seats[slot].prompt,
       viewJson: $buildView(gs.game, slot),
       baseline: baselineInput(gs.game, slot),
-      scripted: effectiveScript(gs.seats.seats[slot]),
+      scripted: effectiveScriptNow(gs.seats.seats[slot]),
       previous: gs.game.plans[slot])
 
 proc applyDecision(gs: var GameState, decision: TurnDecision, turn: int) =

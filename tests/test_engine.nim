@@ -5,7 +5,7 @@
 ## decideAll path the server drives, with libcurl swapped out — so the test
 ## can observe the IN-FLIGHT WINDOW of every seat in a batch.
 
-import std/[json, monotimes, os, unittest]
+import std/[json, monotimes, os, strutils, unittest]
 import support/helpers
 import gridlock/roster
 import gridlock/server
@@ -298,6 +298,40 @@ suite "seats that misbehave":
       "scripted": "beeline"})
     check effectiveScript(seats.seats[2]) == skBeeline
     check policyKindOf(seats.seats[2]) == "scripted"
+
+  test "a mid-match disconnect degrades to dispatcher and revives on reconnect":
+    ## The note: "A seat that disconnects mid-match keeps playing: its plan
+    ## source degrades to `dispatcher` and revives on reconnect."
+    var seats = initRoster(@["a", "b", "c", "d"])
+    seats.applyRegistration(0, %*{"type": "register",
+      "prompt": "keep the city moving", "policy": "gridlock-flowwright"})
+    ## The upgrade handler's two assignments.
+    seats.seats[0].connected = true
+    seats.seats[0].everConnected = true
+    check effectiveScriptNow(seats.seats[0]) == skNone
+    ## The close handler's assignment: the socket dropped mid-match.
+    seats.seats[0].connected = false
+    check effectiveScriptNow(seats.seats[0]) == skDispatcher
+    ## The registration itself is untouched, which is what lets it revive.
+    check effectiveScript(seats.seats[0]) == skNone
+    check policyKindOf(seats.seats[0]) == "llm"
+    seats.seats[0].connected = true
+    check effectiveScriptNow(seats.seats[0]) == skNone
+    ## A seat that never connected at all is unaffected: it was already
+    ## playing dispatcher, and it is not "degraded" by anything.
+    check effectiveScriptNow(seats.seats[3]) == skDispatcher
+    ## A scripted seat plays its own baseline while it is connected, and
+    ## degrades the same way when it drops: nobody is behind the seat.
+    seats.applyRegistration(1, %*{"type": "register", "scripted": "beeline"})
+    seats.seats[1].connected = true
+    seats.seats[1].everConnected = true
+    check effectiveScriptNow(seats.seats[1]) == skBeeline
+    seats.seats[1].connected = false
+    check effectiveScriptNow(seats.seats[1]) == skDispatcher
+    ## The server reads this every turn, so the degrade is applied where the
+    ## seat's request is built.
+    let serverSource = readSource("src/gridlock/server.nim")
+    check serverSource.contains("effectiveScriptNow(gs.seats.seats[slot])")
 
   test "a no-show is declared to COGAME_PLAYER_FAILURE_URI":
     let dir = getTempDir() / "gridlock-failure-test"

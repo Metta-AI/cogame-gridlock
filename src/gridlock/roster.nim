@@ -65,9 +65,21 @@ proc policyKindOf*(seat: SeatRegistration): string =
     "llm"
 
 proc effectiveScript*(seat: SeatRegistration): ScriptKind =
+  ## What the seat REGISTERED as. `effectiveScriptNow` is what it plays this
+  ## turn; the registration itself survives a drop so a reconnect revives it.
   if seat.scripted != skNone:
     seat.scripted
   elif strutils.strip(seat.prompt).len == 0:
     skDispatcher
   else:
     skNone
+
+proc effectiveScriptNow*(seat: SeatRegistration): ScriptKind =
+  ## A seat that connected and then dropped keeps playing, with its plan
+  ## source degraded to `dispatcher` — there is nobody to answer for the
+  ## prompt, and an LLM call for an absent seat is spend with no owner. It
+  ## revives on reconnect because the registration is untouched.
+  if seat.everConnected and not seat.connected:
+    skDispatcher
+  else:
+    effectiveScript(seat)
