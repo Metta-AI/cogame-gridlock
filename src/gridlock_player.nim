@@ -89,9 +89,11 @@ when isMainModule:
           break
         case payload{"type"}.getStr()
         of "welcome":
+          ## Nothing to send: the register frame went out on connect and
+          ## `applyRegistration` is idempotent, so a second copy would only
+          ## be a second frame the protocol does not describe.
           echo "gridlock player: seated at slot ", payload{"slot"}.getInt(),
             " as ", payload{"fleet"}.getStr()
-          socket.send(frame)
         of "turn":
           discard
         else:

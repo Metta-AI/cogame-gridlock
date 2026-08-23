@@ -91,6 +91,12 @@ suite "the player entrypoint":
     check player.contains("PLAYER_SCRIPTED")
     check player.contains("PLAYER_POLICY_LABEL")
     check player.contains("COWORLD_PLAYER_WS_URL")
+    ## Exactly one send, and it is on connect — the note's "sends exactly one
+    ## text frame". Everything after it is a receive.
+    check player.count("socket.send(") == 1
+    let sendIndex = player.find("socket.send(frame)")
+    check sendIndex > 0
+    check player.find("while true:") > sendIndex
     ## It never decides anything: no plan is built player-side. Setting
     ## neither variable registers `scripted: "dispatcher"` — the server
     ## picks the plan, the player never invents one.
