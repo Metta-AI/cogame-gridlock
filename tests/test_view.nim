@@ -39,7 +39,7 @@ suite "the per-seat view":
       check not line.contains("0,0->1,0")
     check lines[0].contains("1,0->2,0")
 
-
+  test "the documented keys are all there":
     let view = buildView(game, 0)
     for key in ["turn", "of", "tick", "ticks_left", "seconds_left", "you",
         "city", "fleets", "events_last_turn"]:
