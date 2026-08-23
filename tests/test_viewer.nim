@@ -240,14 +240,24 @@ suite "chrome":
 
 suite "the native half of the viewer check":
   ## The emitted module is only present after tools/build_replay_viewer.sh has
-  ## run, which needs emsdk. When it is there, drive it exactly as the browser
-  ## does; when it is not, the browser half in ci.yml is the gate.
+  ## run, which needs emsdk — so a developer sandbox without one gets a notice
+  ## instead of a red suite. CI does NOT get that latitude: ci.yml's
+  ## `viewer-native` job downloads the bundle wasm-viewer built and runs this
+  ## file with GRIDLOCK_REQUIRE_BUNDLE=1, which turns a missing bundle into a
+  ## failure. Without that job this case would never once have executed.
   test "the emitted module replays to the end when a bundle is present":
-    let bundle = "dist/static-replay-viewer"
+    let bundle = getEnv("GRIDLOCK_VIEWER_BUNDLE", "dist/static-replay-viewer")
+    let required = getEnv("GRIDLOCK_REQUIRE_BUNDLE").len > 0
     if not fileExists(bundle / "gridlock_replay.js"):
-      echo "no built bundle in " & bundle & "; ci.yml's wasm-viewer job is " &
-        "the gate for the browser half"
-      skip()
+      if required:
+        checkpoint("GRIDLOCK_REQUIRE_BUNDLE is set and " & bundle &
+          "/gridlock_replay.js is missing: the bundle this case exists to " &
+          "drive was not built or not downloaded")
+        fail()
+      else:
+        echo "no built bundle in " & bundle & "; set GRIDLOCK_REQUIRE_BUNDLE " &
+          "to make this a failure (ci.yml's viewer-native job does)"
+        skip()
     else:
       let harness = "tools/wasm_replay_smoke.cjs"
       check fileExists(harness)

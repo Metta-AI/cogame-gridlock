@@ -327,3 +327,88 @@ jobs:
           path: dist/static-replay-viewer
           if-no-files-found: error
           retention-days: 14
+
+  # ---------------------------------------------------------------------
+  # The native half of tests/test_viewer.nim. The `test` job runs on a runner
+  # with no emsdk, so the case that drives the EMITTED module (32-bit `int`,
+  # 2 GB address space, overflow traps the 64-bit native tests never see)
+  # found no bundle and reported [SKIPPED] — every run, in both modes. Here
+  # the bundle wasm-viewer just built is downloaded and the same file is run
+  # with GRIDLOCK_REQUIRE_BUNDLE=1, which turns "no bundle" from a skip into
+  # a failure. This job is why that case executes at all.
+  # ---------------------------------------------------------------------
+  viewer-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: wasm-viewer
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download the bundle wasm-viewer built
+        uses: actions/download-artifact@v4
+        with:
+          name: static-replay-viewer
+          path: dist/static-replay-viewer
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Cache nimby toolchain and nimcache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nimby
+            ~/.cache/nim
+          key: nimby-${{ runner.os }}-${{ env.NIMBY_VERSION }}-${{ env.NIM_VERSION }}-${{ hashFiles('nimby.lock') }}
+          restore-keys: |
+            nimby-${{ runner.os }}-${{ env.NIMBY_VERSION }}-${{ env.NIM_VERSION }}-
+
+      - name: Install nimby and Nim
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          arch="$(dpkg --print-architecture)"
+          case "$arch" in
+            amd64) asset="nimby-Linux-X64" ;;
+            arm64) asset="nimby-Linux-ARM64" ;;
+            *) echo "::error::unsupported runner arch: $arch"; exit 1 ;;
+          esac
+          curl -fsSL -o "$HOME/.local/bin/nimby" \
+            "https://github.com/treeform/nimby/releases/download/${NIMBY_VERSION}/${asset}"
+          chmod +x "$HOME/.local/bin/nimby"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.nimby/nim/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/nimby" use "$NIM_VERSION"
+
+      - name: Sync Nim dependencies
+        run: |
+          set -euo pipefail
+          if [ -f nimby.lock ]; then
+            nimby --global sync nimby.lock
+          else
+            echo "no nimby.lock in the repo; skipping dependency sync"
+          fi
+
+      - name: Regenerate nim.cfg from the synced package tree
+        run: |
+          set -euo pipefail
+          rm -f nim.cfg
+          for pkg in "$HOME"/.nimby/pkgs/*; do
+            [ -e "$pkg" ] || continue
+            if [ -d "$pkg/src" ]; then
+              echo "--path:\"$pkg/src\"" >> nim.cfg
+            else
+              echo "--path:\"$pkg\"" >> nim.cfg
+            fi
+          done
+          echo '--path:"src"' >> nim.cfg
+
+      - name: Drive the emitted module natively
+        env:
+          GRIDLOCK_REQUIRE_BUNDLE: "1"
+          GRIDLOCK_VIEWER_BUNDLE: dist/static-replay-viewer
+        run: |
+          set -euo pipefail
+          ls -la dist/static-replay-viewer
+          nim r --hints:off --path:src tests/test_viewer.nim
