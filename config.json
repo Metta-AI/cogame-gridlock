@@ -1,0 +1,9 @@
+{
+  "seed": 42,
+  "num_agents": 4,
+  "fleetSize": 50,
+  "episodeTicks": 4800,
+  "turnTicks": 240,
+  "cityPath": "gridcity",
+  "players": [{"name": "P1"}, {"name": "P2"}, {"name": "P3"}, {"name": "P4"}]
+}

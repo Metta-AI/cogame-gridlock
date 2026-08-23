@@ -1,0 +1,5 @@
+.git
+dist
+replay-viewer/dist
+node_modules
+tmp

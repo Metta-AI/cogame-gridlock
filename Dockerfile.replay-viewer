@@ -1,0 +1,77 @@
+# Builds the static wasm replay viewer with a pinned Nim + emsdk toolchain.
+# The output is architecture-neutral WebAssembly even though this reproducible
+# toolchain container runs as linux/amd64.
+#
+# The wasm module compiles THE SAME Nim sim the game server runs — it
+# re-derives every frame from the recorded plan stream, so lane occupancy (the
+# heat map, which is the whole picture) is recomputed in the browser rather
+# than transported.
+FROM emscripten/emsdk:4.0.15 AS replay-viewer-builder
+
+RUN apt-get update && \
+  apt-get install -y --no-install-recommends ca-certificates curl git && \
+  rm -rf /var/lib/apt/lists/* && \
+  curl -fsSL \
+    -o /usr/local/bin/nimby \
+    https://github.com/treeform/nimby/releases/download/0.1.27/nimby-Linux-X64 && \
+  echo "3b3084394bd26b09f84a3f82389f075221c8784893238390939d71dd66ac9e8b  /usr/local/bin/nimby" | sha256sum -c - && \
+  chmod +x /usr/local/bin/nimby && \
+  nimby use 2.2.4
+
+ENV PATH="/root/.nimby/nim/bin:$PATH"
+
+WORKDIR /workspace/gridlock
+COPY . .
+# The wasm module reaches only the Nim stdlib plus src/gridlock/{sim,replay,
+# render} — nothing in it imports mummy, curly, whisky or bitworld — so no
+# package sync is needed here. Drop the host machine's package paths.
+RUN rm -f nim.cfg && \
+  nim c --hints:off -d:emscripten replay-viewer/gridlock_replay.nim && \
+  nim c -r --hints:off --path:src -o:/tmp/gen_wire_constants \
+    tools/gen_wire_constants.nim > replay-viewer/dist/wire_constants.js && \
+  cp client/broadcast_core.js replay-viewer/dist/broadcast_core.js && \
+  cp client/chrome_common.js replay-viewer/dist/chrome_common.js && \
+  cp replay-viewer/static_replay.js replay-viewer/dist/static_replay.js && \
+  cp replay-viewer/static_replay_worker.js \
+    replay-viewer/dist/static_replay_worker.js && \
+  cp data/font.ttf replay-viewer/dist/font.ttf && \
+  mkdir -p replay-viewer/dist/art && \
+  cp client/art/asphalt.jpg client/art/intersection.png \
+    client/art/block_park.png client/art/block_roof.png \
+    client/art/plaza.png client/art/depot_copper.png \
+    client/art/depot_cobalt.png client/art/depot_verde.png \
+    client/art/depot_saffron.png client/art/van.png \
+    client/art/van_loaded.png client/art/parcel_pin.png \
+    replay-viewer/dist/art/ && \
+  mkdir -p replay-viewer/dist/art/walls && \
+  cp client/art/walls/wall_h.jpg client/art/walls/wall_v.jpg \
+    replay-viewer/dist/art/walls/ && \
+  sed -e 's|<!-- WIRE_CONSTANTS -->|<script src="./wire_constants.js"></script>|' \
+      -e 's|<!-- CHROME_COMMON -->|<script src="./chrome_common.js"></script>|' \
+      -e 's|<!-- BROADCAST_CORE -->|<script src="./static_replay.js"></script>|' \
+    client/replay_broadcast.html > replay-viewer/dist/index.html && \
+  rm -rf replay-viewer/dist/nimcache && \
+  test -f replay-viewer/dist/gridlock_replay.wasm && \
+  test -f replay-viewer/dist/gridlock_replay.js && \
+  test -f replay-viewer/dist/gridlock_replay.data && \
+  test -f replay-viewer/dist/static_replay_worker.js && \
+  test -f replay-viewer/dist/index.html && \
+  test -s replay-viewer/dist/wire_constants.js && \
+  grep -q '^window.GRIDLOCK_WIRE={' replay-viewer/dist/wire_constants.js && \
+  grep -q 'wire_constants.js' replay-viewer/dist/index.html && \
+  grep -q 'chrome_common.js' replay-viewer/dist/index.html && \
+  grep -q 'static_replay.js' replay-viewer/dist/index.html && \
+  grep -q 'window.ChromeCommon' replay-viewer/dist/chrome_common.js && \
+  grep -q 'static_replay_worker.js' replay-viewer/dist/static_replay.js && \
+  grep -q 'coworld-replay' replay-viewer/dist/static_replay.js && \
+  grep -q 'data-replay-error' replay-viewer/dist/static_replay.js && \
+  grep -q 'data-replay-loaded' replay-viewer/dist/static_replay.js && \
+  grep -q 'onRuntimeInitialized' replay-viewer/dist/static_replay_worker.js && \
+  grep -q 'importScripts' replay-viewer/dist/static_replay_worker.js && \
+  ! grep -q '<script src="./broadcast_core.js"></script>' \
+    replay-viewer/dist/index.html && \
+  ! grep -q '<script src="./gridlock_replay.js"></script>' \
+    replay-viewer/dist/index.html && \
+  test -f replay-viewer/dist/art/asphalt.jpg && \
+  test -f replay-viewer/dist/art/van.png && \
+  test -f replay-viewer/dist/art/walls/wall_h.jpg

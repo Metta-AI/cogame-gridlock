@@ -1,0 +1,11 @@
+nim.cfg
+nimcache/
+dist/
+replay-viewer/dist/
+tmp/
+*.exe
+gridlock
+gridlock-player
+node_modules/
+viewer-smoke.png
+viewer-smoke.json

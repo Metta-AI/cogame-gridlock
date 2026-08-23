@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gridlock — Spectator</title>
+<style>
+html,body{margin:0;height:100%;background:#0d0f13;color:#e8ecf3;
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#wrap{display:flex;flex-direction:column;height:100%;gap:8px;padding:10px}
+h1{font-size:15px;letter-spacing:.14em;text-transform:uppercase;margin:0;
+  color:#9aa4b4}
+#scorebug{display:flex;gap:8px;flex-wrap:wrap}
+.plate{display:flex;align-items:center;gap:6px;background:rgba(14,17,22,.82);
+  border:1px solid rgba(140,158,186,.24);border-radius:5px;padding:3px 8px;
+  font-size:13px;min-width:0}
+.chip{width:9px;height:9px;border-radius:2px;flex:0 0 auto}
+.plate-name{flex:1 1 auto;min-width:3.2em;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+#board{flex:1 1 auto;width:100%;background:#14171c;border-radius:6px}
+#feed{font-size:12px;color:#9aa4b4;max-height:22vh;overflow:hidden}
+#statuschip{font-size:11px;color:#9aa4b4}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>Gridlock — live <span id="statuschip">connecting</span></h1>
+  <div id="scorebug"></div>
+  <canvas id="board" width="1024" height="1024"></canvas>
+  <div id="feed"></div>
+</div>
+<script>
+// A real spectator page: it opens /global (the SPECTATOR socket) and never
+// the player socket. The episode runner probes this route before starting
+// player pods, so it must return a real page and must not seat anybody.
+(function () {
+  'use strict';
+  var canvas = document.getElementById('board');
+  var ctx = canvas.getContext('2d');
+  var meta = null;
+  var socket = new WebSocket(
+    (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host +
+    '/global');
+  socket.onopen = function () {
+    document.getElementById('statuschip').textContent = 'live';
+  };
+  socket.onclose = function () {
+    document.getElementById('statuschip').textContent = 'closed';
+  };
+  socket.onmessage = function (event) {
+    var payload;
+    try { payload = JSON.parse(event.data); } catch (ignore) { return; }
+    if (payload.type === 'meta') { meta = payload; paintScorebug(payload); return; }
+    if (payload.type === 'frame' && meta) paint(payload);
+  };
+  function paintScorebug(m) {
+    var bug = document.getElementById('scorebug');
+    bug.textContent = '';
+    for (var i = 0; i < m.players.length; i++) {
+      var plate = document.createElement('div');
+      plate.className = 'plate';
+      var chip = document.createElement('div');
+      chip.className = 'chip';
+      chip.style.background = m.colours[i];
+      var name = document.createElement('div');
+      name.className = 'plate-name';
+      name.textContent = m.players[i] + ' \u00b7 ' + m.aliases[i];
+      var score = document.createElement('div');
+      score.className = 'score';
+      score.textContent = '0';
+      plate.appendChild(chip); plate.appendChild(name); plate.appendChild(score);
+      bug.appendChild(plate);
+    }
+  }
+  function paint(frame) {
+    var scale = Math.min(canvas.width / meta.board[0],
+      canvas.height / meta.board[1]);
+    ctx.fillStyle = '#20242a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.scale(scale, scale);
+    var heat = ['#2e3440', '#4d7c4f', '#4d7c4f', '#4d7c4f', '#4d7c4f',
+      '#6d8c45', '#8f9442', '#d9a441', '#d9a441', '#d08038', '#c2452d',
+      '#c2452d', '#a5331f', '#8e2318', '#7a1414'];
+    for (var i = 0; i < meta.lanes.length; i++) {
+      var lane = meta.lanes[i];
+      ctx.strokeStyle = heat[Math.min(heat.length - 1, frame.q[i] || 0)];
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(lane.a[0], lane.a[1]);
+      ctx.lineTo(lane.b[0], lane.b[1]);
+      ctx.stroke();
+    }
+    ctx.restore();
+    var plates = document.querySelectorAll('#scorebug .score');
+    for (var p = 0; p < plates.length; p++) {
+      plates[p].textContent = String(frame.delivered[p]);
+    }
+    var feed = document.getElementById('feed');
+    if (frame.events) {
+      for (var e = 0; e < frame.events.length; e++) {
+        if (frame.events[e].type !== 'plan') continue;
+        var line = document.createElement('div');
+        line.textContent = frame.events[e].fleet + ' \u2192 reprice ' +
+          frame.events[e].congestion_weight + ', dispatch ' +
+          frame.events[e].dispatch;
+        feed.insertBefore(line, feed.firstChild);
+        while (feed.childElementCount > 8) feed.removeChild(feed.lastChild);
+      }
+    }
+  }
+})();
+</script>
+</body>
+</html>

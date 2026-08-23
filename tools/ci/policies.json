@@ -1,0 +1,31 @@
+[
+  {
+    "name": "gridlock-flowwright",
+    "run": "/bin/gridlock-player",
+    "env": {
+      "PLAYER_PROMPT": "Keep the city moving and you will out-deliver anyone who does not.\nRead jam_index first, every single turn, before you look at your own numbers. Under 20\nthe city is empty: run dispatch 100, congestion_weight 25, patience 70, spread 30,\npriority near, and just churn short trips. Between 20 and 45 the arterials are loading:\nraise congestion_weight to 55 and drop dispatch to 85. Above 45 you are paying for\nsomebody's greed - congestion_weight 80, dispatch 60, spread 80, patience 25. Above 70\ngo to dispatch 45 and congestion_weight 95 and wait it out; a van parked at your depot\ncosts you nothing, and a van stalled in a queue costs you the delivery AND blocks the\nroad you need next turn.\nWatch your own stalled_pct against jam_index. If your stalled_pct is well above the city\nnumber, the jam is YOURS - you are self-congesting, so cut dispatch by 20 and raise spread\nto 90 before you touch anything else. If it is well below, you are routing around other\npeople's mess and you should hold the plan for another turn.\nUse avoid on the single worst district in the districts grid whenever its digit is 8 or 9\nand it does not contain your depot. Use corridor sparingly: only on the ring districts\nnext to your own corner, and only when the CENTRE digit is 7 or more. Never corridor the\nCENTRE. Everybody's addresses pull through the middle already.\npriority near almost always. Switch to far for exactly one turn when your backlog is over\n50 - long trips clear the backlog fastest when the roads near you are jammed anyway - then\nswitch straight back.\nDo not thrash. A plan you keep for three turns beats three clever plans, because a van\nthat re-plans at every intersection spends its life turning around."
+    }
+  },
+  {
+    "name": "gridlock-backstreet",
+    "run": "/bin/gridlock-player",
+    "env": {
+      "PLAYER_PROMPT": "Let the others fight over the arterials. You take the side streets.\nStand congestion_weight high - 70 to 90 - for the whole match, almost regardless of\njam_index. Arterials are cheaper to plan over, so every greedy fleet in this city computes\nthe same route through the same three roads; a high congestion weight is what pushes your\nvans one block off that road, where the lights are the same and the queues are empty. Your\ntrips will be a little longer and they will actually finish.\nAlways avoid the district with the highest congestion digit, and if two are tied, avoid the\none nearer the CENTRE. Set corridor to the district diagonally between your depot and your\nbusiest destinations, never to the CENTRE and never to a district you are avoiding.\nKeep patience low, 20 to 35: you want a van to bail out of a road the moment it starts to\nfill, because your whole edge is being one block away from the queue before it forms.\nRun dispatch at 90 while jam_index is under 50 and drop to 65 above it. You are not the one\ncausing the jam, but you still cannot deliver through it, and a smaller fleet on the road\nis a faster fleet on the road.\npriority fifo as a habit; go near for a turn whenever your backlog is under 15, so that your\nvans are doing quick loops while the arterials are locked and the other fleets are stalled.\nWhen you see a gridlock event in a district, do not go anywhere near it for two turns. It\ntakes longer to drain than it looks, and the fleets that queued into it are still in there."
+    },
+    "player": "ply_bac48eb1-662e-44f8-973d-f3e016dccf5d"
+  },
+  {
+    "name": "gridlock-dispatcher",
+    "run": "/bin/gridlock-player",
+    "env": {
+      "PLAYER_SCRIPTED": "dispatcher"
+    }
+  },
+  {
+    "name": "gridlock-beeline",
+    "run": "/bin/gridlock-player",
+    "env": {
+      "PLAYER_SCRIPTED": "beeline"
+    }
+  }
+]

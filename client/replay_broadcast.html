@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gridlock — Replay</title>
+<style>
+/* ---------------------------------------------------------------------
+   Chrome kept in shape from coworld-ctf's client/replay_broadcast.html:
+   the --hudscale / --u fixed-point relayout loop, the .tiny easing, the
+   scorebug plate block (including the min-width/ellipsis fix for names
+   collapsing to "…"), the transport bar and the endcard.
+
+   LEGIBLE AT 360 px. The embedded featured-match iframe is about 360 px
+   wide, so the composition is checked THERE, not at desktop width:
+   --hudscale does the heavy lifting, .plate .team-name / .plate-name carry
+   `flex: 1 1 auto; min-width: 3.2em`, and the 640 px media block collapses
+   #fleetbug to dots, hides #planbar and #viewpanel, drops the speed-chip
+   labels and shrinks #jamgauge.
+   --------------------------------------------------------------------- */
+:root{
+  --hudscale: 1;
+  --u: calc(var(--hudscale) * 1px);
+  --ink: #e8ecf3;
+  --dim: #9aa4b4;
+  --panel: rgba(14,17,22,0.82);
+  --edge: rgba(140,158,186,0.24);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;background:#0d0f13;color:var(--ink);
+  font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  overflow:hidden}
+#viewport{position:relative;width:100%;height:100%;display:flex;
+  align-items:center;justify-content:center}
+#stage{position:relative;width:100%;height:100%;display:flex;
+  align-items:center;justify-content:center}
+#board{display:block;width:min(100vw,100vh);height:min(100vw,100vh);
+  background:#14171c;border-radius:calc(6*var(--u))}
+#lightpool{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 42%,rgba(255,255,255,0.06),
+    rgba(0,0,0,0.55) 78%)}
+#grain{position:absolute;inset:0;pointer-events:none;opacity:.05;
+  background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.4) 0 1px,
+    transparent 1px 3px)}
+#chrome{position:absolute;inset:0;pointer-events:none}
+#chrome > *{pointer-events:auto}
+
+/* --- scorebug --------------------------------------------------------- */
+#scorebug{position:absolute;top:calc(8*var(--u));left:0;right:0;display:flex;
+  justify-content:space-between;gap:calc(6*var(--u));
+  padding:0 calc(10*var(--u))}
+#plates-l,#plates-r{display:flex;flex-direction:column;gap:calc(4*var(--u));
+  min-width:0;flex:1 1 0}
+#plates-r{align-items:flex-end}
+.plate{display:flex;align-items:center;gap:calc(6*var(--u));min-width:0;
+  max-width:calc(230*var(--u));background:var(--panel);
+  border:1px solid var(--edge);border-radius:calc(5*var(--u));
+  padding:calc(3*var(--u)) calc(8*var(--u));
+  font-size:calc(13*var(--u));line-height:1.25;opacity:.82}
+.plate.leader{opacity:1;border-color:rgba(215,228,255,0.5)}
+.chip{width:calc(9*var(--u));height:calc(9*var(--u));border-radius:2px;
+  flex:0 0 auto}
+/* Names never collapse to "…" — playbook gotcha, checked at 360 px. */
+.plate .team-name,.plate-name{flex:1 1 auto;min-width:3.2em;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.plate .team-alias{flex:0 0 auto;color:var(--dim);
+  font-size:calc(11*var(--u));white-space:nowrap}
+.plate .team-score{flex:0 0 auto;font-variant-numeric:tabular-nums;
+  font-weight:700;min-width:2.2em;text-align:right}
+
+/* --- clock ------------------------------------------------------------ */
+#clock{position:absolute;top:calc(8*var(--u));left:50%;
+  transform:translateX(-50%);text-align:center;background:var(--panel);
+  border:1px solid var(--edge);border-radius:calc(5*var(--u));
+  padding:calc(3*var(--u)) calc(12*var(--u))}
+#clock-time{font-size:calc(20*var(--u));font-weight:700;
+  font-variant-numeric:tabular-nums}
+#clock-caption{font-size:calc(10*var(--u));color:var(--dim);
+  letter-spacing:.08em;text-transform:uppercase}
+#ffwd-mini{font-size:calc(10*var(--u));color:#d9a441}
+
+/* --- fleet counters, in the four corners over their depots ------------ */
+/* The counters sit on the BOARD's four corners, over their own depots —
+   diegetic, and out of the scorebug's way at every width. */
+#fleetbug{position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);width:min(100vw,100vh);
+  height:min(100vw,100vh);display:grid;
+  padding:calc(40*var(--u)) calc(40*var(--u)) calc(64*var(--u));
+  grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;
+  pointer-events:none}
+.fleet-counter{display:flex;align-items:center;gap:calc(5*var(--u));
+  background:var(--panel);border:1px solid var(--edge);
+  border-radius:calc(5*var(--u));padding:calc(2*var(--u)) calc(7*var(--u));
+  align-self:start;justify-self:start;font-size:calc(12*var(--u))}
+.corner-1{justify-self:end}
+.corner-2{align-self:end}
+.corner-3{align-self:end;justify-self:end}
+.fleet-dot{width:calc(8*var(--u));height:calc(8*var(--u));border-radius:50%}
+.fleet-alias{color:var(--dim);font-size:calc(11*var(--u))}
+.fleet-count{font-weight:700;font-variant-numeric:tabular-nums;
+  min-width:2.2em;text-align:right}
+.fleet-bar{width:calc(38*var(--u));height:calc(4*var(--u));
+  background:rgba(255,255,255,.12);border-radius:2px;overflow:hidden}
+.fleet-bar-fill{height:100%;width:0}
+
+/* --- plan chips: the LLM visibly playing ------------------------------ */
+#planbar{position:absolute;left:calc(10*var(--u));bottom:calc(96*var(--u));
+  display:flex;gap:calc(5*var(--u));flex-wrap:wrap}
+.plan-chip{display:flex;align-items:center;gap:calc(4*var(--u));
+  background:var(--panel);border:1px solid var(--edge);
+  border-radius:calc(4*var(--u));padding:calc(2*var(--u)) calc(6*var(--u));
+  font-size:calc(11*var(--u));font-variant-numeric:tabular-nums}
+.plan-dot{width:calc(7*var(--u));height:calc(7*var(--u));border-radius:50%}
+
+/* --- jam gauge -------------------------------------------------------- */
+#jamgauge{position:absolute;right:calc(10*var(--u));
+  bottom:calc(96*var(--u));display:flex;align-items:center;
+  gap:calc(6*var(--u));background:var(--panel);border:1px solid var(--edge);
+  border-radius:calc(5*var(--u));padding:calc(3*var(--u)) calc(8*var(--u));
+  font-size:calc(11*var(--u))}
+.jam-label{color:var(--dim);letter-spacing:.1em}
+.jam-track{width:calc(90*var(--u));height:calc(7*var(--u));
+  background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden}
+.jam-fill{height:100%;width:2%;background:#4d7c4f}
+.jam-value{font-weight:700;font-variant-numeric:tabular-nums;min-width:2.2em;
+  text-align:right}
+.jam-grid{display:grid;grid-template-columns:repeat(3,1fr);
+  gap:calc(1*var(--u))}
+.jam-cell{width:calc(11*var(--u));height:calc(11*var(--u));
+  display:flex;align-items:center;justify-content:center;
+  font-size:calc(9*var(--u));border-radius:2px;background:#2e3440}
+.heat-7,.heat-8{background:#d9a441;color:#20242a}
+.heat-9{background:#c2452d}
+#jamflash{position:absolute;inset:0;pointer-events:none}
+
+/* --- banners and feed ------------------------------------------------- */
+#bannerlane{position:absolute;top:calc(74*var(--u));left:50%;
+  transform:translateX(-50%);background:rgba(160,40,28,.92);
+  border-radius:calc(4*var(--u));padding:calc(3*var(--u)) calc(12*var(--u));
+  font-size:clamp(11px,3.4vw,17px);font-weight:700;letter-spacing:.06em;
+  white-space:nowrap;opacity:0;transition:opacity .18s ease}
+#bannerlane.show{opacity:1}
+#killfeed{position:absolute;right:calc(10*var(--u));top:calc(74*var(--u));
+  display:flex;flex-direction:column;gap:calc(2*var(--u));
+  align-items:flex-end;max-width:min(46vw,calc(300*var(--u)))}
+.feed-line{background:var(--panel);border:1px solid var(--edge);
+  border-radius:calc(4*var(--u));padding:calc(2*var(--u)) calc(7*var(--u));
+  font-size:calc(11*var(--u));color:var(--ink);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;max-width:100%}
+#mmwarn{position:absolute;bottom:calc(78*var(--u));left:50%;
+  transform:translateX(-50%);color:#e0703c;font-size:calc(11*var(--u));
+  display:none}
+html[data-replay-mismatch-tick] #mmwarn{display:block}
+
+/* --- view panel ------------------------------------------------------- */
+#viewpanel{position:absolute;left:calc(10*var(--u));top:calc(74*var(--u));
+  display:flex;flex-direction:column;gap:calc(4*var(--u))}
+#minimap{width:calc(96*var(--u));height:calc(96*var(--u));
+  background:var(--panel);border:1px solid var(--edge);
+  border-radius:calc(4*var(--u));overflow:hidden}
+#minimap-canvas{width:100%;height:100%;display:block}
+#zoombar{display:flex;align-items:center;gap:calc(3*var(--u));
+  font-size:calc(10*var(--u))}
+#zoom-slider{width:calc(56*var(--u))}
+
+/* --- transport -------------------------------------------------------- */
+#transport{position:absolute;left:0;right:0;bottom:0;
+  background:linear-gradient(to top,rgba(8,10,13,.94),rgba(8,10,13,0));
+  padding:calc(6*var(--u)) calc(10*var(--u)) calc(8*var(--u));
+  display:flex;flex-direction:column;gap:calc(5*var(--u))}
+#scrub{position:relative;height:calc(12*var(--u));
+  background:rgba(255,255,255,.1);border-radius:calc(6*var(--u));
+  cursor:pointer;overflow:hidden}
+#scrub-fill{position:absolute;left:0;top:0;bottom:0;width:0;
+  background:linear-gradient(90deg,#3f6f96,#79b7e0)}
+#momentum,#lulls,#scrub-win{position:absolute;inset:0;pointer-events:none}
+#scrub-head{position:absolute;top:0;bottom:0;width:calc(3*var(--u));
+  background:#fff;border-radius:2px}
+.tbar{display:flex;align-items:center;gap:calc(5*var(--u));flex-wrap:wrap}
+.tbtn{background:var(--panel);border:1px solid var(--edge);color:var(--ink);
+  border-radius:calc(4*var(--u));padding:calc(3*var(--u)) calc(8*var(--u));
+  font-size:calc(12*var(--u));cursor:pointer}
+.tbtn:hover{border-color:rgba(215,228,255,.5)}
+.chiplabel{font-size:calc(10*var(--u));color:var(--dim);
+  letter-spacing:.08em;text-transform:uppercase}
+#speedchips{display:flex;gap:calc(3*var(--u))}
+.speedchip{background:var(--panel);border:1px solid var(--edge);
+  color:var(--dim);border-radius:calc(4*var(--u));
+  padding:calc(2*var(--u)) calc(6*var(--u));font-size:calc(11*var(--u));
+  cursor:pointer}
+.speedchip.on{color:var(--ink);border-color:rgba(215,228,255,.6)}
+#tick-clock,#ffwd-chip,#win-chip{font-size:calc(10*var(--u));color:var(--dim);
+  font-variant-numeric:tabular-nums}
+
+/* --- endcard and curtain ---------------------------------------------- */
+#endcard{position:absolute;inset:0;display:none;flex-direction:column;
+  align-items:center;justify-content:center;gap:calc(8*var(--u));
+  background:rgba(8,10,13,.9);padding:calc(16*var(--u));text-align:center}
+#endcard.show{display:flex}
+#ec-headline{font-size:calc(26*var(--u));font-weight:800}
+#ec-wincond,#ec-how{font-size:calc(12*var(--u));color:var(--dim);
+  max-width:calc(460*var(--u))}
+#ec-teams{display:flex;flex-direction:column;gap:calc(3*var(--u));
+  width:min(92vw,calc(520*var(--u)))}
+.ec-row{display:flex;align-items:center;gap:calc(6*var(--u));
+  background:var(--panel);border:1px solid var(--edge);
+  border-radius:calc(4*var(--u));padding:calc(3*var(--u)) calc(8*var(--u));
+  font-size:calc(11*var(--u))}
+.ec-name{flex:1 1 auto;min-width:3.2em;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.ec-num{flex:0 0 auto;color:var(--dim);font-variant-numeric:tabular-nums}
+#lockerroom{position:absolute;inset:0;display:none}
+#status{position:absolute;bottom:calc(112*var(--u));left:50%;
+  transform:translateX(-50%);color:#ff8a6a;font-size:calc(12*var(--u));
+  display:none}
+#status.show{display:block}
+#loading{position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;background:#0d0f13;color:var(--dim);
+  letter-spacing:.14em;font-size:14px;z-index:20}
+
+/* --- 360 px: the embedded featured-match width ------------------------ */
+.tiny #scorebug{top:calc(4*var(--u))}
+.tiny .plate{font-size:calc(11*var(--u));padding:calc(2*var(--u))
+  calc(5*var(--u))}
+@media (max-width: 640px){
+  #planbar{display:none}
+  #viewpanel{display:none}
+  .chiplabel{display:none}
+  #fleetbug .fleet-alias,#fleetbug .fleet-bar{display:none}
+  .fleet-counter{padding:calc(1*var(--u)) calc(4*var(--u))}
+  .jam-grid{display:none}
+  .jam-track{width:calc(56*var(--u))}
+  .plate .team-alias{display:none}
+  #killfeed{max-width:92vw;left:calc(6*var(--u));right:calc(6*var(--u));
+    align-items:flex-start;top:auto;bottom:calc(108*var(--u))}
+  #killfeed .feed-line:nth-child(n+3){display:none}
+  #bannerlane{font-size:clamp(11px,3.4vw,17px);max-width:94vw;
+    overflow:hidden;text-overflow:ellipsis}
+}
+</style>
+<!-- WIRE_CONSTANTS -->
+<!-- CHROME_COMMON -->
+</head>
+<body>
+<div id="viewport">
+  <div id="stage">
+    <canvas id="board" width="1024" height="1024"></canvas>
+    <div id="lightpool"></div>
+    <div id="grain"></div>
+    <div id="chrome">
+      <div id="scorebug"><div id="plates-l"></div><div id="plates-r"></div></div>
+      <div id="clock">
+        <div id="clock-time">00:00</div>
+        <div id="clock-caption">turn 0/20</div>
+        <div id="ffwd-mini"></div>
+      </div>
+      <div id="fleetbug"></div>
+      <div id="planbar"></div>
+      <div id="jamgauge"></div>
+      <div id="jamflash"></div>
+      <div id="bannerlane"></div>
+      <div id="killfeed" class="feed"></div>
+      <div id="mmwarn">REPLAY DIGEST MISMATCH — SHOWING RECORDED INPUTS</div>
+      <div id="viewpanel">
+        <div id="minimap"><canvas id="minimap-canvas" width="192" height="192"></canvas></div>
+        <div id="zoombar">
+          <button class="tbtn" id="zoom-out" type="button">−</button>
+          <input id="zoom-slider" type="range" min="1" max="8" step="1" value="1">
+          <button class="tbtn" id="zoom-in" type="button">+</button>
+          <span id="zoom-read">1×</span>
+        </div>
+      </div>
+      <div id="transport">
+        <div id="scrub">
+          <div id="scrub-fill"></div>
+          <div id="momentum"></div>
+          <div id="lulls"></div>
+          <div id="scrub-win"></div>
+          <div id="scrub-head"></div>
+        </div>
+        <div class="tbar">
+          <button class="tbtn" id="btn-restart" type="button">⏮</button>
+          <button class="tbtn" id="btn-back" type="button">◀</button>
+          <button class="tbtn" id="btn-play" type="button">❚❚</button>
+          <button class="tbtn" id="btn-fwd" type="button">▶▶</button>
+          <button class="tbtn" id="btn-end" type="button">⏭</button>
+          <button class="tbtn" id="btn-loop" type="button">LOOP</button>
+          <button class="tbtn" id="btn-skip" type="button">SKIP LULLS</button>
+          <button class="tbtn" id="btn-spoilers" type="button">SPOILERS</button>
+          <span class="chiplabel">SPEED</span>
+          <span id="speedchips"></span>
+          <span id="ffwd-chip"></span>
+          <span id="win-chip"></span>
+          <span id="tick-clock">t 0</span>
+        </div>
+      </div>
+      <div id="endcard">
+        <div id="ec-headline"></div>
+        <div id="ec-wincond"></div>
+        <div id="ec-teams"></div>
+        <div id="ec-how"></div>
+        <div id="ec-replay"></div>
+      </div>
+      <div id="lockerroom">
+        <div id="lk-bg"></div><div id="lk-art"></div>
+        <div id="lk-sprites"></div><div id="lk-cap"></div>
+      </div>
+      <div id="status"></div>
+    </div>
+  </div>
+</div>
+<div id="loading">LOADING REPLAY…</div>
+<!-- BROADCAST_CORE -->
+</body>
+</html>
