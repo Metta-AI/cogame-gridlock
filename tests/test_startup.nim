@@ -91,9 +91,20 @@ suite "the player entrypoint":
     check player.contains("PLAYER_SCRIPTED")
     check player.contains("PLAYER_POLICY_LABEL")
     check player.contains("COWORLD_PLAYER_WS_URL")
-    ## It never decides anything: no plan is built player-side. (Its default
-    ## PLAYER_PROMPT talks about congestion_weight — that is strategy text for
-    ## the model, not a decision.)
+    ## It never decides anything: no plan is built player-side. Setting
+    ## neither variable registers `scripted: "dispatcher"` — the server
+    ## picks the plan, the player never invents one.
     check not player.contains("dispatcherPlan")
     check not player.contains("RoutingPlan")
     check not player.contains("import gridlock/")
+
+  test "a seat that sets neither variable registers as dispatcher":
+    ## README, docs/PROTOCOL.md and the design note all say so; substituting
+    ## a default PROMPT here would quietly make it an LLM seat.
+    check player.contains("\"dispatcher\"")
+    let index = player.find("let scripted =")
+    check index > 0
+    let body = player[index ..< min(player.len, index + 260)]
+    check body.contains("PLAYER_SCRIPTED")
+    check body.contains("\"dispatcher\"")
+    check not player.contains("DefaultPrompt")

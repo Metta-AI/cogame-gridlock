@@ -12,17 +12,6 @@
 import std/[json, options, os, strutils]
 import whisky
 
-const DefaultPrompt = """
-Read jam_index before you look at your own numbers. Keep the city moving:
-raise congestion_weight as the index climbs and cut dispatch once it is over
-45, because a van parked at your depot costs you nothing while a van stalled
-in a queue costs you the delivery AND blocks the road you need next turn.
-Avoid the single worst district when its digit is 8 or 9 and it does not hold
-your depot. Prefer near parcels; switch to far for one turn when your backlog
-is over 50. Do not thrash — a plan you keep for three turns beats three
-clever plans.
-"""
-
 const
   ConnectAttempts = 40
   ConnectDelayMs = 750
@@ -31,10 +20,18 @@ when isMainModule:
   let url = strutils.strip(getEnv("COWORLD_PLAYER_WS_URL"))
   if url.len == 0:
     quit("COWORLD_PLAYER_WS_URL is not set", 1)
-  let scripted = strutils.strip(getEnv("PLAYER_SCRIPTED"))
-  var prompt = getEnv("PLAYER_PROMPT")
-  if strutils.strip(prompt).len == 0 and scripted.len == 0:
-    prompt = DefaultPrompt
+  let prompt = getEnv("PLAYER_PROMPT")
+  ## A seat that sets NEITHER variable defaults to PLAYER_SCRIPTED=dispatcher
+  ## (README, docs/PROTOCOL.md, and the note twice). Substituting a prompt
+  ## here would make such a seat an LLM seat and spend model calls on a
+  ## policy nobody asked for.
+  let scripted =
+    if strutils.strip(getEnv("PLAYER_SCRIPTED")).len > 0:
+      strutils.strip(getEnv("PLAYER_SCRIPTED"))
+    elif strutils.strip(prompt).len == 0:
+      "dispatcher"
+    else:
+      ""
   let label = strutils.strip(getEnv("PLAYER_POLICY_LABEL"))
 
   let frame = $ %*{
