@@ -174,6 +174,34 @@ suite "wall-clock guards":
     check parsed.tickCount == 480
     check parsed.plans.len == 2
 
+  test "a replan onto a route that does not start at the van's node faults":
+    ## Step 14's route guard. It never fires on a healthy router — Dijkstra
+    ## backtracks from the target to the vehicle's own node — so the test
+    ## plants the broken route the guard exists to catch.
+    var game = newTestSim(960, 21)
+    discard runTurn(game, scriptedPlansFor(game, allKinds(skDispatcher)))
+    check invariantFailure(game) == ""
+    var g = -1
+    for i in 0 ..< game.vehicles.len:
+      if game.vehicles[i].lane >= 0 and game.vehicles[i].route.len >= 2:
+        g = i
+        break
+    check g >= 0
+    check routeStartFailure(game, g) == ""
+    let here = laneOf(game.vehicles[g].lane).head
+    var stale = -1
+    for lane in 0 ..< LaneCount:
+      if laneOf(lane).tail != here:
+        stale = lane
+        break
+    check stale >= 0
+    game.vehicles[g].route[1] = stale
+    check routeStartFailure(game, g).len > 0
+    game.vehicles[g].route[0] = stale
+    check routeStartFailure(game, g).len > 0
+    game.routeFault = routeStartFailure(game, g)
+    check invariantFailure(game).len > 0
+
   test "a sim fault yields fault/sim_fault with zeros and a partial replay":
     var game = newTestSim(960, 21)
     discard runTurn(game, scriptedPlansFor(game, allKinds(skDispatcher)))

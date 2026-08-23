@@ -160,8 +160,30 @@ proc gridlockWatch*(sim: var Sim) =
       "blocked_lanes": blocked[d],
       "fleets_involved": involved}))
 
+proc routeStartFailure*(sim: Sim, g: int): string =
+  ## Step 14's route guard, checked on every COMPLETED replan: an on-road
+  ## van's route starts with the lane it occupies, and the lane after it
+  ## leaves that lane's head node. A route that fails this is a router bug —
+  ## a merely STALE route (the vehicle moved on before its replan was popped)
+  ## is repaired by `nextLaneOf`, which is why the guard is applied where the
+  ## replan lands and not to every vehicle on the board.
+  let vehicle = sim.vehicles[g]
+  if vehicle.lane < 0 or vehicle.route.len == 0:
+    return ""
+  if vehicle.route[0] != vehicle.lane:
+    return "vehicle " & $g & " replanned onto a route starting at lane " &
+      $vehicle.route[0] & ", not its own lane " & $vehicle.lane
+  if vehicle.route.len >= 2 and
+      laneOf(vehicle.route[1]).tail != laneOf(vehicle.lane).head:
+    return "vehicle " & $g & " replanned onto a route whose next lane " &
+      $vehicle.route[1] & " does not start at node " &
+      nodeLabel(laneOf(vehicle.lane).head)
+  ""
+
 proc invariantFailure*(sim: Sim): string =
   ## Step 14's guards. Returns "" when everything holds.
+  if sim.routeFault.len > 0:
+    return sim.routeFault
   var seen = newSeq[int](sim.cells.len)
   for i in 0 ..< seen.len:
     seen[i] = -1

@@ -393,6 +393,10 @@ type
 
     replanQueue*: seq[int]
     replanHead*: int
+    routeFault*: string
+      ## Step 14's route guard: set by the replan step when a COMPLETED
+      ## replan produced a route that does not start at the vehicle's own
+      ## node, and reported by `invariantFailure`.
 
     moveOpp*, blockedOpp*: int
     seatMoveOpp*, seatBlockedOpp*: array[Seats, int]

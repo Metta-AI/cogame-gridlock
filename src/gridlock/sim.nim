@@ -434,6 +434,8 @@ proc replanStep*(sim: var Sim) =
         sim.vehicles[g].dest
       else: depotNode(sim.seatDepot[seat])
     assignRoute(sim, g, target)
+    if sim.routeFault.len == 0:
+      sim.routeFault = routeStartFailure(sim, g)
 
 proc stepTick*(sim: var Sim) =
   if sim.tick mod TargetFps == 0:
