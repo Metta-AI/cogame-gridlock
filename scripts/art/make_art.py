@@ -19,10 +19,10 @@ import sys
 from PIL import Image, ImageDraw, ImageFilter
 
 FLEETS = {
-    "copper": (224, 122, 63),
-    "cobalt": (74, 143, 231),
-    "verde": (95, 191, 106),
-    "saffron": (242, 193, 78),
+    "carbon": (224, 122, 63),
+    "oxygen": (74, 143, 231),
+    "germanium": (95, 191, 106),
+    "silicon": (242, 193, 78),
 }
 
 

@@ -119,9 +119,9 @@ player_protocol = (
  "results. A seat that never registers, or registers with neither field, plays the dispatcher "
  "baseline; a no-show never ends the episode.\n\n"
  "game -> player:\n"
- "  {\"type\":\"welcome\",\"protocol\":\"gridlock.player.v1\",\"slot\":N,\"fleet\":\"Copper\","
+ "  {\"type\":\"welcome\",\"protocol\":\"gridlock.player.v1\",\"slot\":N,\"fleet\":\"Carbon\","
  "\"colour\":\"#e07a3f\",\"turns\":20,\"turn_seconds\":10}\n"
- "  {\"type\":\"turn\",\"turn\":7,\"tick\":1680,\"fleet\":\"Copper\",\"view\":{...},"
+ "  {\"type\":\"turn\",\"turn\":7,\"tick\":1680,\"fleet\":\"Carbon\",\"view\":{...},"
  "\"plan_source\":\"llm\"} once per routing turn (informational; the seat is not required to answer)\n"
  "  {\"done\":true,\"result\":{...the results document...}} then close.\n\n"
  "The view carries: turn/of/tick/ticks_left/seconds_left; you.{fleet,colour,depot,depot_district,"
@@ -135,7 +135,7 @@ player_protocol = (
  "prompt, policy kind, destinations, backlog and trip times, individual rival van positions, the "
  "canonical destination schedule beyond its own next six orders, the seat-to-depot permutation for "
  "any other seat, the episode seed, and the future. The only names in a view are the depot aliases "
- "Copper / Cobalt / Verde / Saffron, re-permuted every episode.\n\n"
+ "Carbon / Oxygen / Germanium / Silicon, re-permuted every episode.\n\n"
  "The routing plan the model returns: {\"congestion_weight\":0-100,\"patience\":0-100,"
  "\"dispatch\":0-100,\"spread\":0-100,\"corridor\":[bx,by]|null,\"avoid\":[bx,by]|null,"
  "\"priority\":\"near\"|\"far\"|\"fifo\",\"note\":\"<=140 runes\",\"say\":\"<=32 runes\"}. Parsing "
@@ -170,7 +170,7 @@ global_protocol = (
 )
 
 variant_players = [{"name": n} for n in
-                   ["Copper Line", "Cobalt Line", "Verde Line", "Saffron Line"]]
+                   ["Carbon Line", "Oxygen Line", "Germanium Line", "Silicon Line"]]
 
 manifest = collections.OrderedDict()
 manifest["$schema"] = "https://raw.githubusercontent.com/Metta-AI/coworld/main/src/coworld/coworld_manifest_schema.json"

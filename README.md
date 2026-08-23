@@ -82,7 +82,7 @@ van-minutes.
 
 ## Anonymity
 
-Fleet aliases (`Copper`, `Cobalt`, `Verde`, `Saffron`) are properties of the **depot corner**, never
+Fleet aliases (`Carbon`, `Oxygen`, `Germanium`, `Silicon`) are properties of the **depot corner**, never
 of the seat, and the seat → depot permutation is drawn from the episode seed and re-drawn every
 episode. No prompt, view or event body ever contains a real player name. Ganging up to jam a rival
 is in-game politics and is allowed; targeting a specific author is not possible.

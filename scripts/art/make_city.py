@@ -19,10 +19,10 @@ CELL_PX = 8
 BOARD = MARGIN * 2 + SPACING * (GRID - 1)
 
 DEPOTS = [
-    {"id": "D0", "node": [1, 1], "alias": "Copper", "colour": "#e07a3f"},
-    {"id": "D1", "node": [7, 1], "alias": "Cobalt", "colour": "#4a8fe7"},
-    {"id": "D2", "node": [1, 7], "alias": "Verde", "colour": "#5fbf6a"},
-    {"id": "D3", "node": [7, 7], "alias": "Saffron", "colour": "#f2c14e"},
+    {"id": "D0", "node": [1, 1], "alias": "Carbon", "colour": "#e07a3f"},
+    {"id": "D1", "node": [7, 1], "alias": "Oxygen", "colour": "#4a8fe7"},
+    {"id": "D2", "node": [1, 7], "alias": "Germanium", "colour": "#5fbf6a"},
+    {"id": "D3", "node": [7, 7], "alias": "Silicon", "colour": "#f2c14e"},
 ]
 
 PLAZA_BLOCKS = {(3, 3), (3, 4), (4, 3), (4, 4)}

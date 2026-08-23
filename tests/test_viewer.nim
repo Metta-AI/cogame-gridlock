@@ -18,6 +18,10 @@ let shell = readSource("replay-viewer/static_replay.js")
 let page = readSource("client/replay_broadcast.html")
 let core = readSource("client/broadcast_core.js")
 let chrome = readSource("client/chrome_common.js")
+## The page script is everything after the last <script> tag: the shared
+## chrome (chrome_common.js) is the starter's file verbatim, so the page's
+## own logic is what the chrome cases below grep.
+let pageScript = page[page.rfind("<script>") ..< page.len]
 
 const InheritedChromeIds = [
   "viewport", "stage", "board", "lightpool", "grain", "chrome", "scorebug",
@@ -31,6 +35,15 @@ const InheritedChromeIds = [
   "lk-sprites", "lk-cap"]
 
 const AddedChromeIds = ["fleetbug", "planbar", "jamgauge", "jamflash"]
+
+## Starter signatures the page must carry: the locker-room curtain, the
+## scrubber track + momentum graph + beat markers, the lull-skip chip, the
+## verdict chip, the endcard fade, the --hudscale / --band reserve loop and
+## the event lane. A page that only shares the starter's ids is not a port.
+const StarterSignatures = [
+  "#lockerroom", ".scrub-track", ".momentum-label", ".beat-marker",
+  "#ffwd-chip", ".win-chip", "@keyframes cardfade", "--hudscale", "--band",
+  "#ev-lane"]
 
 suite "the emscripten / JS pairing":
   test "config.nims carries NEITHER MODULARIZE nor EXPORT_NAME":
@@ -135,6 +148,55 @@ suite "load signalling":
     check page.contains("data-replay-mismatch-tick")
     check page.contains("mmwarn")
 
+suite "provenance":
+  test "chrome_common.js is the starter's file, byte for byte":
+    ## The shared chrome is copied, not rewritten: the committed reference
+    ## copy is hive's client/chrome_common.js (the starter's plus the
+    ## clickable, labelled beat-marker patch).
+    let reference = readSource("tests/fixtures/chrome_common.starter.js")
+    check chrome == reference
+    check chrome.contains("window.ChromeCommon = function (ctx)")
+    check chrome.contains("function markBeat(tick, kind, team, label)")
+
+  test "the page carries the starter's chrome, not only its ids":
+    for signature in StarterSignatures:
+      check page.contains(signature)
+    ## The endcard covers the board region only and stops above the
+    ## transport band, so the scrubber stays clickable under it.
+    let card = page.find("#endcard {")
+    check card > 0
+    let cardBody = page[card ..< min(page.len, card + 900)]
+    check cardBody.contains("bottom: var(--band, 0px)")
+    check cardBody.contains("top: var(--topband, 0px)")
+    check not page.contains("#endcard{position:absolute;inset:0")
+    check page.contains("#endcard.on { display: flex;")
+    ## The kill feed rides above the transport band.
+    check page.contains("bottom: calc(var(--band, 0px) + 40 * var(--u))")
+    ## And the three splice markers sit where raid has them, in order.
+    let wire = page.find("<!-- WIRE_CONSTANTS -->")
+    let common = page.find("<!-- CHROME_COMMON -->")
+    let broadcast = page.find("<!-- BROADCAST_CORE -->")
+    check wire > 0 and common > wire and broadcast > common
+    check page.find("</body>") > broadcast
+
+  test "the page boots the worker core the way the shell emits it":
+    check pageScript.contains("window.GridlockStaticReplay.createCore({")
+    for callback in ["onText:", "onStatus:", "onFirstFrame:"]:
+      check pageScript.contains(callback)
+    check pageScript.contains("payload.type === 'meta'")
+    ## The beats, lulls and momentum curves are built up front from
+    ## meta.events, which the worker splices off the fetched replay.
+    check pageScript.contains("meta.events")
+    check worker.contains("function withReplayEvents")
+    check worker.contains("replayEvents = readReplayEvents(bytes)")
+    check pageScript.contains("C.markBeat(e.t, 'gridlock'")
+    check pageScript.contains("C.markBeat(e.t, 'jam'")
+    check pageScript.contains("C.ingestLullSpans(state)")
+    check pageScript.contains("C.ingestLeadSeries(state)")
+    check pageScript.contains("C.setVerdict({ winner: TEAMS[results.winner]")
+    check page.contains(".beat-marker.gridlock")
+    check page.contains(".beat-marker.jam")
+
 suite "chrome":
   test "every inherited chrome id is still there":
     for id in InheritedChromeIds:
@@ -145,14 +207,21 @@ suite "chrome":
       check page.contains("id=\"" & id & "\"")
     for id in ["fpv", "flagicon", "lives", "squadpips", "killicon"]:
       check not page.contains("id=\"" & id & "\"")
+    ## The city fits the frame: the starter's zoom bar + minimap are dropped,
+    ## not hidden, and nothing wires the zoom API.
+    for id in ["viewpanel", "minimap", "minimap-canvas", "zoombar", "zoom-out",
+               "zoom-slider", "zoom-in", "zoom-read"]:
+      check not page.contains("id=\"" & id & "\"")
+    check not pageScript.contains("core.zoomAt")
+    check not pageScript.contains("core.attachMinimap")
 
   test "a gridlock event drives #jamflash, not only the canvas":
     ## The district rectangle is drawn on the board canvas because only the
     ## canvas carries the pan/zoom transform; the element the readout is named
     ## for carries the full-frame pulse, off the same event.
-    check chrome.contains("el('jamflash')")
-    check chrome.contains("flash.classList.add('show')")
-    check chrome.contains("flash.classList.remove('show')")
+    check pageScript.contains("$('jamflash')")
+    check pageScript.contains("flash.classList.add('show')")
+    check pageScript.contains("flash.classList.remove('show')")
     check page.contains("#jamflash.show{opacity:1}")
     check core.contains("function drawFlash")
 
@@ -160,33 +229,38 @@ suite "chrome":
     ## Readout 8 lists play/pause, back one tick, +5 s, jump to end. `#btn-back`
     ## used to seek 0 (which is `#btn-restart`'s job) and `#btn-fwd` used to
     ## set 16x, so two labelled controls lied about what they did.
-    let back = chrome.find("el('btn-back')")
+    let back = pageScript.find("bind('btn-back'")
     check back > 0
-    let backBody = chrome[back ..< min(chrome.len, back + 200)]
+    let backBody = pageScript[back ..< min(pageScript.len, back + 200)]
     check backBody.contains("core.seek(Math.max(0, lastTick - 1))")
-    let fwd = chrome.find("el('btn-fwd')")
+    let fwd = pageScript.find("bind('btn-fwd'")
     check fwd > back
-    let fwdBody = chrome[fwd ..< min(chrome.len, fwd + 320)]
+    let fwdBody = pageScript[fwd ..< min(pageScript.len, fwd + 320)]
     check fwdBody.contains("5 * (meta.ticks_per_second || 24)")
     check fwdBody.contains("core.seek(")
     check not fwdBody.contains("setSpeed(16)")
     ## And the frame stream is where the current tick comes from.
-    check chrome.contains("lastTick = payload.t || 0")
+    check pageScript.contains("lastTick = payload.t || 0")
 
   test "no visible transport control is a no-op":
-    ## Every button in the transport row is either wired in chrome_common.js
-    ## or hidden. An id that nothing writes to is fine — the chrome is the
-    ## starter's — but a control a spectator can click and see nothing happen
-    ## is not.
+    ## Every button in the transport row is wired: seven in the page script
+    ## and the spoilers toggle inside the starter's chrome_common.js. A
+    ## control a spectator can click and see nothing happen is a legibility
+    ## defect, so none is hidden either.
     for id in ["btn-restart", "btn-back", "btn-play", "btn-fwd", "btn-end",
-        "btn-loop"]:
-      check chrome.contains("el('" & id & "')")
-    check chrome.contains("looping = !looping")
-    check chrome.contains("core.seek(0)")
-    for id in ["btn-skip", "btn-spoilers"]:
-      check not chrome.contains("el('" & id & "')")
-      check page.contains(id)
-    check page.contains("#btn-skip,#btn-spoilers{display:none}")
+        "btn-loop", "btn-skip"]:
+      check pageScript.contains("bind('" & id & "'")
+    check chrome.contains("$('btn-spoilers')")
+    check pageScript.contains("state.lp = !state.lp")
+    check pageScript.contains("state.sk = !state.sk")
+    check pageScript.contains("core.seek(0)")
+    check pageScript.contains("C.setSpoilers(!C.getSpoilers())")
+    check not page.contains("#btn-skip,#btn-spoilers{display:none}")
+    ## Lull skipping has something to skip: the spans, the chip and the
+    ## 16x burn are all present.
+    check pageScript.contains("inLull(state.t)")
+    check page.contains("CITY FLOWING")
+    check pageScript.contains("ffwd-mini") or chrome.contains("ffwd-mini")
 
   test "the scorebug survives 360 px":
     ## Playbook gotcha: the embedded featured-match iframe is ~360 px wide and
@@ -201,19 +275,32 @@ suite "chrome":
     let narrow = page[index ..< min(page.len, index + 900)]
     check narrow.contains("#planbar{display:none}")
     check narrow.contains(".chiplabel{display:none}")
+    check narrow.contains("#fleetbug .fleet-alias, #fleetbug .fleet-bar { display: none; }")
+    check narrow.contains(".plate .team-alias { display: none; }")
     check page.contains("--hudscale")
     check page.contains("--u:")
     check page.contains(".tiny ")
 
-  test "the relayout loop drives --hudscale from the board width":
-    check chrome.contains("--hudscale")
-    check chrome.contains("classList.toggle('tiny'")
-    check chrome.contains("window.ChromeCommon") or
-      chrome.contains("globalScope.ChromeCommon")
+  test "the relayout loop drives --hudscale and --band from the stage":
+    ## --u is computed on :root from --hudscale, so the knob is set on
+    ## document.documentElement (a value on #stage would never reach --u);
+    ## the transport's measured height is reserved as --band the same way.
+    let loop = pageScript.find("function relayout()")
+    check loop > 0
+    let body = pageScript[loop ..< min(pageScript.len, loop + 2200)]
+    check body.contains("root.style.setProperty('--hudscale'")
+    check body.contains("root.style.setProperty('--band'")
+    check body.contains("stage.classList.toggle('tiny'")
+    check body.contains("core.setViewportFit()")
+    check chrome.contains("window.ChromeCommon")
 
   test "DOM text is set with textContent, never innerHTML":
-    check not chrome.contains(".innerHTML")
+    ## Player names are player-controlled data: the page's own script and
+    ## the shell never touch innerHTML. (The starter's chrome_common.js
+    ## builds its SVG momentum graph with innerHTML; no name reaches it.)
+    check not pageScript.contains(".innerHTML")
     check not shell.contains(".innerHTML")
+    check pageScript.contains("name.textContent = meta.players[seat]")
 
   test "the world renderer draws the congestion heat ramp under the vans":
     let lanes = core.find("function drawLanes")
@@ -227,8 +314,8 @@ suite "chrome":
 
   test "the bundle's art list is what the build hook copies":
     for asset in ["asphalt.jpg", "intersection.png", "block_park.png",
-        "plaza.png", "depot_copper.png", "depot_cobalt.png",
-        "depot_verde.png", "depot_saffron.png", "van.png", "van_loaded.png",
+        "plaza.png", "depot_carbon.png", "depot_oxygen.png",
+        "depot_germanium.png", "depot_silicon.png", "van.png", "van_loaded.png",
         "parcel_pin.png"]:
       check fileExists("client/art/" & asset)
       check core.contains(asset)

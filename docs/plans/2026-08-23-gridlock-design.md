@@ -81,11 +81,11 @@ its reason.
    websocket to an external RL or code agent is a v0.2 protocol addition, not a v1 redesign
    (§Out of scope).
 3. **"Ganging up to jam a rival is in-game politics… fleet aliases are anonymous per episode."** This
-   is enforced structurally. Fleet aliases (`Copper`, `Cobalt`, `Verde`, `Saffron`) are properties of
+   is enforced structurally. Fleet aliases (`Carbon`, `Oxygen`, `Germanium`, `Silicon`) are properties of
    the **depot corner**, not of the seat; the seat→depot permutation is drawn from the episode seed
    and re-drawn every episode. No prompt, view, or event body ever contains a real player name. A
-   seat can see that Copper's corner is producing traffic and can route to strangle it — that is
-   politics and it is allowed — but it cannot know which author is behind Copper this episode.
+   seat can see that Carbon's corner is producing traffic and can route to strangle it — that is
+   politics and it is allowed — but it cannot know which author is behind Carbon this episode.
 
 **Design pins (`playbooks/make-coworld.md` §Phase 0 / SPEC §"Design pins every coworld inherits") and
 where each is satisfied:**
@@ -97,7 +97,7 @@ where each is satisfied:**
 | LLM policy **and** scripted baseline from day one, same image, env-switched | `PLAYER_PROMPT` (two champion prompts) vs `PLAYER_SCRIPTED=dispatcher` / `PLAYER_SCRIPTED=beeline`; one image `coworld-gridlock:latest`, players run `/bin/gridlock-player`. §Decisions, §Packaging. |
 | Static wasm replay viewer, never a pod | `"replay_viewer": {"bundle": "static-replay-viewer"}`, built by `tools/build_replay_viewer.sh` (forked from paintbot's). §Viewer, §Packaging. |
 | Real art, starter chrome verbatim | Paintbot's `client/replay_broadcast.html` chrome block, ids and `client/chrome_common.js` kept verbatim (id-for-id list in §Viewer); painted asphalt, painted intersections, authored van sprites, authored depot art. No placeholders. §Viewer. |
-| Two name spaces | Prompts, views and event bodies carry only `Copper` / `Cobalt` / `Verde` / `Saffron`, re-permuted per episode; real policy names appear only in `replay.names.players`, `results.names` and the viewer's scorebug/endcard/feed. §Server, §Viewer. |
+| Two name spaces | Prompts, views and event bodies carry only `Carbon` / `Oxygen` / `Germanium` / `Silicon`, re-permuted per episode; real policy names appear only in `replay.names.players`, `results.names` and the viewer's scorebug/endcard/feed. §Server, §Viewer. |
 | Degrade-never-hang, play inside 60 % of `episodeTimeoutSeconds` 1200 | 490 s expected worst case, 660 s engine hard stop, against a 720 s budget; arithmetic spelled out in §Decisions; every wait bounded; LLM failure → one retry → the scripted plan. |
 | `num_agents` in every variant and the cert fixture | **`num_agents` = 4** in variant `default`, variant `rush`, and `certification.game_config`; `SMOKE_SEATS=4`. §Packaging. |
 
@@ -150,10 +150,10 @@ in re-reading 1 above.
 
   | Depot | Node | Fleet alias | Hex |
   |---|---|---|---|
-  | `D0` | (1, 1) | Copper | `#e07a3f` |
-  | `D1` | (7, 1) | Cobalt | `#4a8fe7` |
-  | `D2` | (1, 7) | Verde | `#5fbf6a` |
-  | `D3` | (7, 7) | Saffron | `#f2c14e` |
+  | `D0` | (1, 1) | Carbon | `#e07a3f` |
+  | `D1` | (7, 1) | Oxygen | `#4a8fe7` |
+  | `D2` | (1, 7) | Germanium | `#5fbf6a` |
+  | `D3` | (7, 7) | Silicon | `#f2c14e` |
 
   **Alias and colour are properties of the depot, never of the seat.** The seat→depot assignment is a
   permutation of `[0,1,2,3]` drawn from the episode seed (§Sim module, "Randomness") and re-drawn
@@ -644,10 +644,10 @@ generated) and pinned verbatim into every replay's `city` key, exactly as paintb
  "arterial_cols": [2, 4, 6], "arterial_rows": [2, 4, 6],
  "districts": [3, 3],
  "district_names": [["NW","N","NE"],["W","CENTRE","E"],["SW","S","SE"]],
- "depots": [{"id": "D0", "node": [1, 1], "alias": "Copper",  "colour": "#e07a3f"},
-            {"id": "D1", "node": [7, 1], "alias": "Cobalt",  "colour": "#4a8fe7"},
-            {"id": "D2", "node": [1, 7], "alias": "Verde",   "colour": "#5fbf6a"},
-            {"id": "D3", "node": [7, 7], "alias": "Saffron", "colour": "#f2c14e"}],
+ "depots": [{"id": "D0", "node": [1, 1], "alias": "Carbon",  "colour": "#e07a3f"},
+            {"id": "D1", "node": [7, 1], "alias": "Oxygen",  "colour": "#4a8fe7"},
+            {"id": "D2", "node": [1, 7], "alias": "Germanium",   "colour": "#5fbf6a"},
+            {"id": "D3", "node": [7, 7], "alias": "Silicon", "colour": "#f2c14e"}],
  "signal": {"cycle_ticks": 96, "green_ns_ticks": 48,
             "offset_rule": "((ix + iy) mod 4) * 24"},
  "scenery": [{"kind": "rect", "x": 168, "y": 168, "w": 56, "h": 56, "art": "block_park"},
@@ -719,7 +719,7 @@ loop is wrapped in `try/except CatchableError` and exits 0 on a dead socket** �
 decisions are made server-side):
 
 ```json
-{"type": "turn", "turn": 7, "tick": 1680, "fleet": "Copper",
+{"type": "turn", "turn": 7, "tick": 1680, "fleet": "Carbon",
  "view": { … }, "plan_source": "llm"}
 ```
 
@@ -733,7 +733,7 @@ are integers. Nodes are `[ix, iy]` with `ix, iy ∈ 0..8`; districts are `[bx, b
 
 ```json
 {"turn": 7, "of": 20, "tick": 1680, "ticks_left": 3120, "seconds_left": 130.0,
- "you": {"fleet": "Copper", "colour": "#e07a3f", "depot": [1, 1], "depot_district": [0, 0],
+ "you": {"fleet": "Carbon", "colour": "#e07a3f", "depot": [1, 1], "depot_district": [0, 0],
          "vans": 50, "docked": 9, "loading": 2, "waiting_dispatch": 6,
          "on_road_loaded": 21, "on_road_empty": 12, "stalled": 7,
          "delivered": 61, "delivered_last_turn": 9, "backlog": 23,
@@ -751,10 +751,10 @@ are integers. Nodes are `[ix, iy]` with `ix, iy ∈ 0..8`; districts are `[bx, b
                          "blocked_s": 8.5},
                         {"from": [3, 4], "to": [4, 4], "class": "arterial", "q": 12, "cap": 14,
                          "blocked_s": 3.0}, … up to 8, worst first … ]},
- "fleets": [{"fleet": "Copper",  "delivered": 61, "on_road": 33},
-            {"fleet": "Cobalt",  "delivered": 58, "on_road": 44},
-            {"fleet": "Verde",   "delivered": 47, "on_road": 50},
-            {"fleet": "Saffron", "delivered": 39, "on_road": 28}],
+ "fleets": [{"fleet": "Carbon",  "delivered": 61, "on_road": 33},
+            {"fleet": "Oxygen",  "delivered": 58, "on_road": 44},
+            {"fleet": "Germanium",   "delivered": 47, "on_road": 50},
+            {"fleet": "Silicon", "delivered": 39, "on_road": 28}],
  "events_last_turn": ["gridlock in CENTRE", "jam on 4,3->4,4"]}
 ```
 
@@ -784,7 +784,7 @@ seat→depot permutation for any other seat; the episode seed; and the future. *
 hidden by construction:** the only names in a view are the depot aliases.
 
 **Hidden from everyone, in both in-game name spaces:** the real player names behind the fleet aliases.
-`Copper` / `Cobalt` / `Verde` / `Saffron` are the only names any prompt, view or event body contains;
+`Carbon` / `Oxygen` / `Germanium` / `Silicon` are the only names any prompt, view or event body contains;
 real policy names exist only in `replay.names.players`, `results.names` and the viewer's scorebug,
 endcard and feed. That is the two-name-space pin, and the per-episode seat→depot permutation is the
 idea's "fleet aliases are anonymous per episode".
@@ -837,7 +837,7 @@ All per-seat arrays are length 4 in **slot** order (not depot order).
 
 ```json
 {"names": ["daveey", "daveey-1", "Baseline (1)", "Baseline (2)"],
- "aliases": ["Copper", "Saffron", "Cobalt", "Verde"],
+ "aliases": ["Carbon", "Silicon", "Oxygen", "Germanium"],
  "colours": ["#e07a3f", "#f2c14e", "#4a8fe7", "#5fbf6a"],
  "depots": [[1,1], [7,7], [7,1], [1,7]],
  "policy_kinds": ["llm", "llm", "scripted", "scripted"],
@@ -895,7 +895,7 @@ the viewer can re-derive every lane's occupancy, which is the picture the idea a
  "city": { …data/gridcity.cityspec.json inlined verbatim… },
  "seat_depots": [0, 3, 1, 2],
  "names": {"players": ["daveey", "daveey-1", "Baseline (1)", "Baseline (2)"],
-           "aliases": ["Copper", "Saffron", "Cobalt", "Verde"],
+           "aliases": ["Carbon", "Silicon", "Oxygen", "Germanium"],
            "policy_kinds": ["llm", "llm", "scripted", "scripted"],
            "colours": ["#e07a3f", "#f2c14e", "#4a8fe7", "#5fbf6a"]},
  "ticks_per_second": 24, "turn_ticks": 240, "tick_count": 4800,
@@ -1026,7 +1026,7 @@ the recorded `d`; the first mismatch lights `#mmwarn` and playback continues.
 `static_replay.js`, `static_replay_worker.js`, `broadcast_core.js`, `chrome_common.js`,
 `wire_constants.js`, `gridlock_replay.js`, `gridlock_replay.wasm`, `gridlock_replay.data`,
 `art/asphalt.jpg`, `art/intersection.png`, `art/block_park.png`, `art/plaza.png`,
-`art/depot_copper.png`, `art/depot_cobalt.png`, `art/depot_verde.png`, `art/depot_saffron.png`,
+`art/depot_carbon.png`, `art/depot_oxygen.png`, `art/depot_germanium.png`, `art/depot_silicon.png`,
 `art/van.png`, `art/van_loaded.png`, `art/parcel_pin.png`, `font.ttf`.
 
 ### Chrome kept verbatim
@@ -1079,27 +1079,27 @@ player-controlled data) and stays crisp at any zoom.
    that turns amber above 45 and red above 70, with the 3 × 3 district heat grid beside it. On a
    `gridlock` event the district gets a hatched red overlay in `#jamflash` for 48 frames and a
    `#bannerlane` banner (`GRIDLOCK — CENTRE, 7 lanes blocked`); on a `meter` event with a large `held`,
-   a banner (`Copper holds 22 vans at the depot`). Both are marked on the scrub bar as highlight ticks.
+   a banner (`Carbon holds 22 vans at the depot`). Both are marked on the scrub bar as highlight ticks.
 5. **Time-compressed.** Default playback is **4×** on the inherited `#speedchips`
    (`PlaybackSpeeds = [1,2,3,4,8,16]`), so a 200 s match watches in 50 s. Spans of 240 ticks with no
    `deliver`, no `gridlock` and no `jam` are registered as lull spans in the inherited
    `skipLulls`/`lullSpans`/`#btn-skip`/`#ffwd-chip` machinery and run at 16× with `#clock-caption`
    reading `CITY FLOWING — 16×`. `#btn-skip` turns it off.
 6. **Scorebug** (`#scorebug`, always on): four plates via `ensureScorebug(4)` —
-   `▮ daveey · Copper 163` / `▮ Baseline (1) · Cobalt 96` on the left, `Verde 71 · Baseline (2) ▮` /
-   `Saffron 148 · daveey-1 ▮` on the right — each with its colour chip, the leader's plate brightened,
+   `▮ daveey · Carbon 163` / `▮ Baseline (1) · Oxygen 96` on the left, `Germanium 71 · Baseline (2) ▮` /
+   `Silicon 148 · daveey-1 ▮` on the right — each with its colour chip, the leader's plate brightened,
    and `#clock-time` showing `MM:SS` remaining over `turn 7/20`. **Real player names live here and only
-   here** (plus the endcard and the feed); the board itself labels depots `Copper`…`Saffron`.
-7. **Plan feed** (`#killfeed`, plain language, last 6): `Copper → reprice 65, dispatch 80, avoid
-   CENTRE, near-first`, `Copper says "hold at 80, skip centre"`, `Cobalt → full throttle, no
-   repricing`, `Verde falls back (timeout)`. Plus `#planbar`: four always-visible chips showing each
+   here** (plus the endcard and the feed); the board itself labels depots `Carbon`…`Silicon`.
+7. **Plan feed** (`#killfeed`, plain language, last 6): `Carbon → reprice 65, dispatch 80, avoid
+   CENTRE, near-first`, `Carbon says "hold at 80, skip centre"`, `Oxygen → full throttle, no
+   repricing`, `Germanium falls back (timeout)`. Plus `#planbar`: four always-visible chips showing each
    fleet's current `reprice / dispatch`, so a spectator sees a strategy change *before* the roads
    change. **This is where the LLM is visible playing.**
 8. **Transport** (verbatim): play/pause, back one tick, +5 s, jump to end, loop, lull-skip, spoilers,
    the speed chips, the scrubber with `#momentum` re-purposed to plot **all four delivered curves plus
    the city jam index** across the match, `gridlock` / `jam` / `deliver`-burst ticks marked on the
    scrub bar, the `#tick-clock` readout, and the `#mmwarn` digest-mismatch line.
-9. **Endcard** (`#endcard`): headline `Copper wins — 163 parcels`, then a four-row breakdown
+9. **Endcard** (`#endcard`): headline `Carbon wins — 163 parcels`, then a four-row breakdown
    (delivered, mean trip time, stalled vehicle-minutes, final backlog), then one line naming the cost
    of the commons: `478 parcels delivered · mean jam 43 · peak 88 · 6 gridlocks — the city lost an
    estimated 61 minutes of van time to queues`, and the jam-index curve drawn under the four delivery

@@ -28,8 +28,8 @@
     '#a5331f', '#8e2318', '#7a1414', '#7a1414'];
 
   var ART = ['asphalt.jpg', 'intersection.png', 'block_park.png',
-    'block_roof.png', 'plaza.png', 'depot_copper.png', 'depot_cobalt.png',
-    'depot_verde.png', 'depot_saffron.png', 'van.png', 'van_loaded.png',
+    'block_roof.png', 'plaza.png', 'depot_carbon.png', 'depot_oxygen.png',
+    'depot_germanium.png', 'depot_silicon.png', 'van.png', 'van_loaded.png',
     'parcel_pin.png'];
 
   function makeSurface(w, h) {

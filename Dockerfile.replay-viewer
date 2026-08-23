@@ -43,9 +43,9 @@ RUN set -eux; \
   mkdir -p replay-viewer/dist/art/walls; \
   cp client/art/asphalt.jpg client/art/intersection.png \
     client/art/block_park.png client/art/block_roof.png \
-    client/art/plaza.png client/art/depot_copper.png \
-    client/art/depot_cobalt.png client/art/depot_verde.png \
-    client/art/depot_saffron.png client/art/van.png \
+    client/art/plaza.png client/art/depot_carbon.png \
+    client/art/depot_oxygen.png client/art/depot_germanium.png \
+    client/art/depot_silicon.png client/art/van.png \
     client/art/van_loaded.png client/art/parcel_pin.png \
     replay-viewer/dist/art/; \
   cp client/art/walls/wall_h.jpg client/art/walls/wall_v.jpg \
