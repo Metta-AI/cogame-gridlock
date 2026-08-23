@@ -15,17 +15,21 @@ RUN apt-get update && \
     git && \
   rm -rf /var/lib/apt/lists/*
 
+# nimby is pinned by version URL AND by sha256, the way
+# Dockerfile.replay-viewer pins its own: a release asset that moves under a
+# tag would otherwise rebuild this image with a compiler nobody reviewed.
 RUN if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
-    curl -fsSL \
-      -o /usr/local/bin/nimby \
-https://github.com/treeform/nimby/releases/download/0.1.26/nimby-Linux-X64; \
+    asset=nimby-Linux-X64; \
+    sum=8e1e5c2769c657f599fb15dc4eef1bd861cdee898c6293d2a62df300c2f654c5; \
   elif [ "$(dpkg --print-architecture)" = "arm64" ]; then \
-    curl -fsSL \
-      -o /usr/local/bin/nimby \
-https://github.com/treeform/nimby/releases/download/0.1.26/nimby-Linux-ARM64; \
+    asset=nimby-Linux-ARM64; \
+    sum=30959cf6c0826654b78c2d9180d390b2999ad3fc2d5d7e69b78028519ee48ca9; \
   else \
     echo "unsupported arch: $(dpkg --print-architecture)" && exit 1; \
   fi && \
+  curl -fsSL -o /usr/local/bin/nimby \
+    "https://github.com/treeform/nimby/releases/download/0.1.26/${asset}" && \
+  echo "${sum}  /usr/local/bin/nimby" | sha256sum -c - && \
   chmod +x /usr/local/bin/nimby && \
   nimby use 2.2.4
 
