@@ -406,6 +406,13 @@ proc serviceStep*(sim: var Sim) =
       for k in 0 ..< capacity:
         var g = sim.cells[lane * cells + sl]
         if g < 0:
+          ## An arterial discharges two vans per green step, and one cell
+          ## holds one van — so the second discharge pulls the van behind the
+          ## stop line up into the stop line it just vacated and crosses that.
+          ## The promotion belongs to service, not to movement (it does not
+          ## wait for a move tick); the vacated cell is written -1 before the
+          ## van is re-indexed, so the one-van-per-cell invariant holds.
+          ## docs/RULES.md step 7 states it.
           if k == 0 or sl == 0:
             break
           let behind = sim.cells[lane * cells + sl - 1]

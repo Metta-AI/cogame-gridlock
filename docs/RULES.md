@@ -78,7 +78,11 @@ driving its old route.
 7. **Intersection capacity and signal service.** Every 6 ticks, per node in node order, for each
    **green** approach in the fixed order N, E, S, W: discharge up to **2 (arterial) or 1 (local)**
    vans from the stop line, oldest first. A discharge is legal only if the receiving cell is empty.
-   An illegal discharge is simply not made.
+   An illegal discharge is simply not made. One cell holds one van, so the stop line only ever holds
+   one: an arterial's **second** discharge first pulls the van in the cell behind the stop line up
+   into the vacated stop line, then crosses it. That promotion is part of the service step, not of
+   movement — it is the only way two vans clear one green step — and it never puts two vans in a
+   cell: the cell behind is emptied before the van is re-indexed.
 8. **Spillback.** There is no step for it, and that is the point: a blocked van stays at the stop
    line, movement cannot enter an occupied cell, so a full receiving lane freezes its feeding
    approach, which fills, which freezes the approaches feeding *that*.
