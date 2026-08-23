@@ -42,9 +42,11 @@ if command -v emcc >/dev/null 2>&1 && command -v nim >/dev/null 2>&1; then
   # Local toolchain: build in place with the same recipe the container uses.
   (cd "${repo_dir}" && nim c --hints:off -d:emscripten \
     replay-viewer/gridlock_replay.nim)
-  (cd "${repo_dir}" && nim c -r --hints:off --path:src \
-    -o:/tmp/gridlock_gen_wire tools/gen_wire_constants.nim \
-    > replay-viewer/dist/wire_constants.js)
+  # Compile, THEN run: `nim c -r ... > file` sends nim's own error text into
+  # the redirect and a broken build looks silent.
+  (cd "${repo_dir}" && nim c --hints:off --path:src \
+    -o:/tmp/gridlock_gen_wire tools/gen_wire_constants.nim)
+  /tmp/gridlock_gen_wire > "${repo_dir}/replay-viewer/dist/wire_constants.js"
   cp "${repo_dir}/client/broadcast_core.js" \
     "${repo_dir}/client/chrome_common.js" \
     "${repo_dir}/replay-viewer/static_replay.js" \
