@@ -74,6 +74,19 @@ suite "routes":
     check grace > results
     check body.find("quit(0)") > grace
 
+  test "a fallback event is dated with the turn its plans are for":
+    ## `sim.turn` is only assigned in installPlans, which runTurn calls AFTER
+    ## the decision is applied — so the fallback record must take the loop's
+    ## own turn or every fallback from turn 1 on is dated one turn early.
+    let index = serverSource.find("proc applyDecision")
+    check index > 0
+    let stop = serverSource.find("proc finishEpisode", index)
+    check stop > index
+    let body = serverSource[index ..< stop]
+    check body.contains("newEvent(seFallback, gs.game.tick, turn,")
+    check not body.contains("gs.game.turn")
+    check serverSource.contains("applyDecision(appState, decision, turn)")
+
 suite "auth and registration":
   test "the register frame is accepted and its fields are applied":
     var seats = initRoster(@["t0", "t1", "t2", "t3"])

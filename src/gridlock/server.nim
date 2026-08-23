@@ -136,10 +136,14 @@ proc seatRequestsLocked(gs: GameState): array[Seats, SeatRequest] =
       scripted: effectiveScript(gs.seats.seats[slot]),
       previous: gs.game.plans[slot])
 
-proc applyDecision(gs: var GameState, decision: TurnDecision) =
+proc applyDecision(gs: var GameState, decision: TurnDecision, turn: int) =
+  ## `turn` is the turn these plans are FOR. `sim.turn` still holds the
+  ## previous turn's index here: it is only assigned in `installPlans`, which
+  ## `runTurn` calls after this, so reading it would date every fallback one
+  ## turn early.
   for record in decision.fallbacks:
     inc gs.game.fallbackCauses[record.seat][record.cause]
-    gs.game.events.add(newEvent(seFallback, gs.game.tick, gs.game.turn, %*{
+    gs.game.events.add(newEvent(seFallback, gs.game.tick, turn, %*{
       "seat": record.seat,
       "attempt": record.attempt,
       "cause": $record.cause,
@@ -254,7 +258,7 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
 
       var failure = ""
       withLock stateLock:
-        applyDecision(appState, decision)
+        applyDecision(appState, decision, turn)
         failure = runTurn(appState.game, decision.plans)
         appState.broadcastLocked()
         for slot, socket in appState.playerSockets:
