@@ -1,11 +1,15 @@
-nim.cfg
+# Build outputs only. NOTE the leading slashes: a bare `gridlock` would also
+# ignore the src/gridlock/ package directory, which is how the whole sim
+# module missed the first push.
+/nim.cfg
+/gridlock
+/gridlock-player
 nimcache/
-dist/
-replay-viewer/dist/
-tmp/
+/dist/
+/replay-viewer/dist/
+/tmp/
+/node_modules/
+/package-lock.json
+/viewer-smoke.png
+/viewer-smoke.json
 *.exe
-gridlock
-gridlock-player
-node_modules/
-viewer-smoke.png
-viewer-smoke.json
