@@ -147,6 +147,16 @@ suite "chrome":
     for id in ["fpv", "flagicon", "lives", "squadpips", "killicon"]:
       check not page.contains("id=\"" & id & "\"")
 
+  test "a gridlock event drives #jamflash, not only the canvas":
+    ## The district rectangle is drawn on the board canvas because only the
+    ## canvas carries the pan/zoom transform; the element the readout is named
+    ## for carries the full-frame pulse, off the same event.
+    check chrome.contains("el('jamflash')")
+    check chrome.contains("flash.classList.add('show')")
+    check chrome.contains("flash.classList.remove('show')")
+    check page.contains("#jamflash.show{opacity:1}")
+    check core.contains("function drawFlash")
+
   test "the transport buttons do what the transport says they do":
     ## Readout 8 lists play/pause, back one tick, +5 s, jump to end. `#btn-back`
     ## used to seek 0 (which is `#btn-restart`'s job) and `#btn-fwd` used to

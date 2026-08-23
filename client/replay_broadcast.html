@@ -131,7 +131,14 @@ html,body{margin:0;padding:0;height:100%;background:#0d0f13;color:var(--ink);
   font-size:calc(9*var(--u));border-radius:2px;background:#2e3440}
 .heat-7,.heat-8{background:#d9a441;color:#20242a}
 .heat-9{background:#c2452d}
-#jamflash{position:absolute;inset:0;pointer-events:none}
+/* The gridlock alarm. The hatched district rectangle is drawn on the board
+   canvas (broadcast_core.drawFlash) because only the canvas has the pan/zoom
+   transform; this element is the full-frame red pulse that goes with it, and
+   it is what the chrome drives off the same `gridlock` event. */
+#jamflash{position:absolute;inset:0;pointer-events:none;opacity:0;
+  box-shadow:inset 0 0 calc(46*var(--u)) rgba(194,69,45,.85);
+  transition:opacity .2s ease}
+#jamflash.show{opacity:1}
 
 /* --- banners and feed ------------------------------------------------- */
 #bannerlane{position:absolute;top:calc(74*var(--u));left:50%;

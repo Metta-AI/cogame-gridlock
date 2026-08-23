@@ -336,6 +336,13 @@
               frame.events[e].say + '"');
           }
           if (frame.events[e].type === 'gridlock') {
+            var flash = el('jamflash');
+            if (flash) {
+              flash.classList.add('show');
+              globalScope.setTimeout(function () {
+                flash.classList.remove('show');
+              }, 2200);
+            }
             var banner = el('bannerlane');
             if (banner) {
               banner.textContent = 'GRIDLOCK \u2014 ' +
