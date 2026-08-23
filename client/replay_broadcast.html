@@ -2,307 +2,2084 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gridlock — Replay</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gridlock — Broadcast Replay</title>
 <style>
-/* ---------------------------------------------------------------------
-   Chrome kept in shape from coworld-ctf's client/replay_broadcast.html:
-   the --hudscale / --u fixed-point relayout loop, the .tiny easing, the
-   scorebug plate block (including the min-width/ellipsis fix for names
-   collapsing to "…"), the transport bar and the endcard.
-
-   LEGIBLE AT 360 px. The embedded featured-match iframe is about 360 px
-   wide, so the composition is checked THERE, not at desktop width:
-   --hudscale does the heavy lifting, .plate .team-name / .plate-name carry
-   `flex: 1 1 auto; min-width: 3.2em`, and the 640 px media block collapses
-   #fleetbug to dots, hides #planbar, drops the speed-chip
-   labels and shrinks #jamgauge.
-   --------------------------------------------------------------------- */
-:root{
-  --hudscale: 1;
-  --u: calc(var(--hudscale) * 1px);
-  --ink: #e8ecf3;
-  --dim: #9aa4b4;
-  --panel: rgba(14,17,22,0.82);
-  --edge: rgba(140,158,186,0.24);
+/* ============================================================
+   Ink & Print — warm CRT-phosphor arena broadcast.
+   Palette (never pure black/white): stage #16110d→#241a12,
+   paper #f2e8d8, ink #2a1f16, red #e0523a, blue #3f7cc4,
+   amber #e8a33d, ghost #8a7f72. Typography + weight + whitespace
+   carry hierarchy; strokes are warm-dark, minimal, reserved-slot.
+   ============================================================ */
+@font-face {
+  font-family: 'nes-pixel';
+  src: url(data:font/ttf;base64,AAEAAAALAIAAAwAwRFNJRwAAAAEAADroAAAACE9TLzJl9WflAAABOAAAAGBjbWFwQRVFIAAAAygAAAIEZ2x5ZuI2DFsAAAbAAAAqcGhlYWQrVWkOAAAAvAAAADZoaGVhB4EE5QAAAPQAAAAkaG10eI8xFoAAAAGYAAABkGxvY2EACJ6EAAAFLAAAAZRtYXhwAHAALgAAARgAAAAgbmFtZXv46UAAADEwAAAJmHBvc3QAaQAzAAA6yAAAACAAAQAAAAEAAND94iRfDzz1AAAEAAAAAADkYRIIAAAAAORhEggAAAAAA4AEAAAAAAgAAgABAAAAAAABAAAEAAAAAAAEAAAAAIADgAABAAAAAAAAAAAAAAAAAAAAZAABAAAAZAAsAAsAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAID/QGQAAUABAIAAgAAAAAAAgACAAAAAgAAMwDMAAAAAAQAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAEZTVFIAQAAgIB0DgAAAAAAEAAAAIAEB/83/AAADAAOAAAAAIAAAAzEAAAQAAAAEAACABAABAAQAAAAEAAAABAAAAAQAAAAEAAGABAABAAQAAQAEAAAABAAAgAQAAIAEAACABAABAAQAAAAEAAAABAAAgAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAABAAQAAQAEAAAABAAAAAQAAIAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAgAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAACABAAAAAQAAAAEAAAABAAAAAQAAIAEAAAABAABAAQAAAAEAAEABAAAAAQAAAAEAACABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAEABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAIAEAAAABAAAAAQAAAAEAAAABAAAgAQAAAAEAACABAABAAQAAQAEAAAABAABAAQAAYAEAACABAAAgAAAAAIAAAADAAAAFAADAAEAAAEMAAQA+AAAAAgACAACAAAAfiAZIB3//wAAACAgGCAc////4eBI4EYAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAD4AAAACAAIAAIAAAB+IBkgHf//AAAAICAYIBz////h4EjgRgABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABoAAAAaAAAAMgAAAEAAAABsAAAAngAAAN4AAAELAAABFAAAAScAAAE6AAABdQAAAYgAAAGWAAABnwAAAagAAAHSAAAB+QAAAgwAAAIzAAACWgAAAnoAAAKXAAACuQAAAtYAAAL+AAADIAAAAy4AAANEAAADawAAA3kAAAOgAAADwgAAA+IAAAQEAAAEIgAABEkAAARmAAAEeQAABIkAAASrAAAEvgAABNEAAATmAAAFDwAABRoAAAU3AAAFVAAABWwAAAWCAAAFpwAABckAAAXwAAAF/gAABhEAAAYzAAAGUAAABoEAAAaZAAAGuwAABskAAAbzAAAHAQAAByMAAAcsAAAHPQAAB18AAAd9AAAHmgAAB60AAAfAAAAH0AAAB+gAAAf7AAAIDgAACCYAAAhIAAAIUwAACHAAAAiNAAAIpQAACLsAAAjeAAAI+wAACRgAAAkmAAAJOQAACVsAAAl4AAAJqQAACcEAAAneAAAJ+wAACgQAAAohAAAKPgAACk8AAApgAAAKfgAACpwAAUAAAAAArEDgAACAAUACAALAA8AAAEBAQEBAQEBAQEBAQEBAQECbP7s/u3/7QET/u0CTQAA/uz/7QEU/dn/uwAAArEAAAAyAXr+hgATAXsBev0LAvX+hgATAXsAAPyyA4AAAPyAAAAAAgCAAAACgAQAAAMADwAAAQEBAQEBAQEBAQEBAQEBAQEAAAABAAAA/wAAAP+AAAAAgAAAAQAAAACAAAD/gAAAAAABAAAA/wABgACAAAABgAAAAIAAAP+AAAD+gAAA/4AAAgEAAoACgAQAAAMABwAAAQEBAQEBAQEBAAAAAIAAAACAAAAAgAAAAoABgAAA/oAAAAGAAAD+gAACAAAAgAOABAAAAwAfAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQIAAAD/gAAA/wAAAP+AAAAAgAAA/4AAAACAAAABAAAAAIAAAAEAAAAAgAAA/4AAAACAAAD/gAAA/wAAAP+AAAABgAGAAAD+gP8AAIAAAACAAAABgAAAAIAAAACAAAD/gAAAAIAAAP+AAAD/gAAA/oAAAP+AAAD/gAAAAIAAAP+AAAMAAAAAA4AEAAADAAcAIwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAoAAAP+AAAD+AAAAAIAAAACAAAD/AAAAAQAAAP+AAAAAgAAA/4AAAACAAAABAAAAAYAAAP6AAAABAAAAAIAAAP+AAAD/AAAAAQABAAAA/wABgACAAAD/gP2AAIAAAACAAAABAAAAAIAAAACAAAAAgAAAAIAAAP+AAAD/gAAA/4AAAP+AAAD/AAAA/4AAAP+AAAAACwAAAIADgAQAAAMABwALAA8AEwAXABsAHwAjACcAKwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAAAAIAAAAAAAAAAgAAAAgAAAP+AAAD+gAAAAIAAAACAAAABgAAA/gAAAACAAAAAAAAAAIAAAP6AAAD/gAAAAgAAAACAAAD9AAAAAYAAAAGAAAAAgAAAAIAAgAAA/4AAgACAAAD/gAAAAIAAAP+AAIAAgAAA/4D/AAGAAAD+gAGAAIAAAP+AAIAAgAAA/4AAgACAAAD/gAAAAIAAAP+A/4ABgAAA/oABAACAAAD/gAAAAAMAAACAA4AEAAADAAcAHwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEDAAAAAIAAAP+AAAAAgAAA/QAAAP+AAAAAgAAAAIAAAACAAAABgAAA/wAAAP8AAAABAAAAAIAAAACAAAD/gAAAAIAAgAAA/4ABAAEAAAD/AP8AAIAAAAEAAAAAgAAAAQAAAACAAAD/gAAA/oAAAP8AAAABAAAA/4AAAP+AAAD/gAAAAAEBgAKAAgAEAAADAAABAQEBAYAAAACAAAACgAGAAAD+gAAAAAEBAACAAoAEAAALAAABAQEBAQEBAQEBAQEBgAAA/4AAAACAAAABAAAA/4AAAACAAAAAgACAAAACgAAAAIAAAP+AAAD9gAAA/4AAAAABAQAAgAKABAAACwAAAQEBAQEBAQEBAQEBAQAAAACAAAD/gAAAAQAAAACAAAD/gAAAAIAAgAAAAoAAAACAAAD/gAAA/YAAAP+AAAAAAQAAAIADgAQAACsAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAAAAACAAAAAgAAA/wAAAAEAAAD/gAAA/4AAAAEAAAAAgAAAAIAAAACAAAABAAAA/4AAAP+AAAABAAAA/wAAAACAAAAAgAAA/wAAAP+AAAD/gAAA/4AAAACAAIAAAACAAAAAgAAAAIAAAACAAAAAgAAAAIAAAP+AAAD/gAAAAIAAAACAAAD/gAAA/4AAAP+AAAD/gAAA/4AAAP+AAAD/gAAAAIAAAACAAAD/gAAA/4AAAAABAIAAgAOABAAACwAAAQEBAQEBAQEBAQEBAYAAAP8AAAABAAAAAQAAAAEAAAD/AAAAAIABgAAAAIAAAAGAAAD+gAAA/4AAAP6AAAAAAQCAAAACAAGAAAcAAAEBAQEBAQEBAIAAAACAAAABAAAA/4AAAAAAAIAAAAEAAAD/AAAA/4AAAAABAIACAAOAAoAAAwAAAQEBAQCAAAADAAAAAgAAgAAA/4AAAAABAQAAgAIAAYAAAwAAAQEBAQEAAAABAAAAAIABAAAA/wAAAAAHAAAAgAOABAAAAwAHAAsADwATABcAGwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAAAAAAgAAAAAAAAACAAAAAAAAAAIAAAAAAAAAAgAAAAAAAAACAAAAAAAAAAIAAAAAAAAAAgAAAAIAAgAAA/4AAgACAAAD/gACAAIAAAP+AAIAAgAAA/4AAgACAAAD/gACAAIAAAP+AAIAAgAAA/4AAAAACAAAAgAOABAAADQAbAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAAAP+AAAD/gAAAAIAAAACAAAAAgAAAAQAAAAAAAAD/gAAA/wAAAAGAAAAAgAAAAIAAAP+AAAAAgACAAAAAgAAAAYAAAACAAAD+AAAA/4AAAP+AAIACAAAAAIAAAACAAAD/gAAA/4AAAP6AAAD/gAABAIAAgAOABAAACwAAAQEBAQEBAQEBAQEBAIAAAAEAAAD/gAAAAIAAAAEAAAABAAAAAIAAgAAAAgAAAACAAAAAgAAA/QAAAP+AAAAAAQAAAIADgAQAABsAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAAAAIAAAACAAAABAAAAAIAAAP6AAAD/AAAAAIAAAAKAAAAAgAAA/4AAAP+AAAD/AAAAAgAAAACAAQAAAACAAAAAgAAAAIAAAACAAAD/gAAAAIAAAACAAAD/gAAA/wAAAP+AAAD/gAAA/4AAAP+AAAAAAQAAAIADgAQAABsAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAgAAA/4AAAAEAAAABgAAA/oAAAACAAAAAgAAA/gAAAAOAAAD/gAAA/4AAAACAAAAAgAAA/4AAAACAAIAAAACAAAD/gAAAAQAAAACAAAAAgAAAAIAAAACAAAD/gAAA/4AAAP+AAAD/gAAA/wAAAP+AAAAAAgAAAIADgAQAAAUAFQAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQIAAAD/gAAA/4AAAAEAAAD+AAAAAIAAAACAAAAAgAAAAYAAAACAAAD/gAAAAgABAAAA/4AAAP+A/oABAAAAAQAAAACAAAAAgAAAAIAAAP4AAAD/gAAA/wAAAAABAAAAgAOABAAAEwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEAgAAA/4AAAAEAAAABgAAA/YAAAAMAAAD+AAAAAgAAAACAAAD/gAAAAIAAgAAAAIAAAP+AAAABgAAAAYAAAP+AAAD/gAAA/4AAAP6AAAD/gAAAAAIAAACAA4AEAAADABcAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQKAAAD+gAAA/4AAAP+AAAAAgAAAAIAAAAIAAAD+gAAA/4AAAAIAAAAAgAAA/4AAAAEAAQAAAP8A/4AAgAAAAgAAAACAAAAAgAAA/4AAAP+AAAD/gAAA/4AAAP8AAAD/gAABAAAAgAOABAAAEwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAAAAIAAAACAAAAAgAAA/oAAAP8AAAADgAAA/4AAAP+AAAD/gAAAAIABgAAAAIAAAACAAAAAgAAA/4AAAAEAAAD/AAAA/4AAAP+AAAD+gAAAAAMAAACAA4AEAAADAAcAGwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQKAAAD+gAAAAYAAAP6AAAD/gAAA/4AAAACAAAD/gAAAAIAAAAKAAAAAgAAA/4AAAACAAAD/gAAAAQABAAAA/wABgAEAAAD/AP4AAIAAAAEAAAAAgAAAAQAAAACAAAD/gAAA/wAAAP+AAAD/AAAA/4AAAAACAAAAgAOABAAAAwAXAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQECgAAA/oAAAP+AAAABgAAAAIAAAP4AAAD/gAAAAIAAAAKAAAAAgAAA/4AAAP+AAAACgAEAAAD/AP4AAIAAAACAAAAAgAAAAIAAAAEAAAAAgAAA/4AAAP4AAAD/gAAA/4AAAgEAAIACAAOAAAMABwAAAQEBAQEBAQEBAAAAAQAAAP8AAAABAAAAAIABAAAA/wACAAEAAAD/AAADAQAAAAIAAwAAAwAJAA0AAAEBAQEBAQEBAQEBAQEBAQAAAACAAAAAAAAA/4AAAAEAAAD/AAAAAQAAAAAAAIAAAP+AAIAAgAAAAIAAAP8AAYABAAAA/wAAAQAAAIADgAQAABsAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBgAAA/4AAAP+AAAD/gAAAAIAAAACAAAAAgAAAAgAAAP8AAAD/gAAA/4AAAACAAAAAgAAAAQAAAACAAIAAAACAAAAAgAAAAIAAAACAAAAAgAAAAIAAAP+AAAD/gAAA/4AAAP+AAAD/gAAA/4AAAP+AAAAAAgAAAQADAAOAAAMABwAAAQEBAQEBAQEAAAAAAwAAAP0AAAADAAAAAQAAgAAA/4ACAACAAAD/gAABAIAAgAOABAAAGwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQCAAAAAgAAAAIAAAACAAAD/gAAA/4AAAP+AAAABgAAAAIAAAACAAAAAgAAA/4AAAP+AAAD/gAAAAIAAgAAAAIAAAACAAAAAgAAAAIAAAACAAAAAgAAA/4AAAP+AAAD/gAAA/4AAAP+AAAD/gAAA/4AAAAACAAAAAAOABAAAAwAXAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBgAAAAQAAAP8AAAAAgAAAAIAAAP6AAAD/AAAAAIAAAAKAAAAAgAAA/4AAAP+AAAAAAAEAAAD/AAGAAQAAAACAAAAAgAAA/wAAAAEAAAAAgAAA/4AAAP8AAAD/gAAA/4AAAgAAAIADgAQAAAMAFQAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQKAAAD/gAAA/oAAAP+AAAAAgAAAAoAAAACAAAD/gAAA/oAAAAEAAAD+gAAAAQABgAAA/oD/gACAAAACgAAAAIAAAP+AAAD9gAAA/4AAAAKAAAAAgAAA/QAAAAACAAAAgAOABAAABwAXAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQECgAAA/4AAAP+AAAD/gAAA/wAAAACAAAAAgAAAAYAAAACAAAAAgAAA/wAAAP6AAAACAAEAAAAAgAAA/4AAAP8A/oACgAAAAIAAAACAAAD/gAAA/4AAAP2AAAABAAAA/wAAAwAAAIADgAQAAAMABwATAAABAQEBAQEBAQEBAQEBAQEBAQEBAQKAAAD+gAAAAYAAAP6AAAD/AAAAAwAAAACAAAD/gAAAAIAAAP+AAAABAAEAAAD/AAGAAQAAAP8A/gADgAAA/4AAAP8AAAD/gAAA/wAAAP+AAAAAAQAAAIADgAQAABsAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAAA/4AAAP+AAAAAgAAAAIAAAAIAAAAAgAAA/wAAAP8AAAD/gAAAAIAAAAEAAAABAAAA/4AAAACAAIAAAACAAAABgAAAAIAAAACAAAD/gAAA/4AAAACAAAD/gAAA/oAAAP+AAAAAgAAA/4AAAP+AAAAAAgAAAIADgAQAAAcAEwAAAQEBAQEBAQEBAQEBAQEBAQEBAQECAAAAAIAAAP+AAAD/AAAA/wAAAAKAAAAAgAAAAIAAAP+AAAD/gAAAAQAAgAAAAYAAAACAAAD9gP+AA4AAAP+AAAD/gAAA/oAAAP+AAAD/gAABAAAAgAOABAAACwAAAQEBAQEBAQEBAQEBAAAAAAOAAAD9gAAAAgAAAP4AAAACgAAAAIADgAAA/4AAAP8AAAD/gAAA/wAAAP+AAAAAAQAAAIADgAQAAAkAAAEBAQEBAQEBAQEAAAAAA4AAAP2AAAACAAAA/gAAAACAA4AAAP+AAAD/AAAA/4AAAP6AAAEAAACAA4AEAAAXAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAAA/4AAAP+AAAAAgAAAAIAAAAKAAAD+AAAA/4AAAACAAAABAAAA/4AAAAGAAAAAgACAAAAAgAAAAYAAAACAAAAAgAAA/4AAAP+AAAD+gAAA/4AAAAEAAAAAgAAA/gAAAAABAAAAgAOABAAACwAAAQEBAQEBAQEBAQEBAAAAAAEAAAABgAAAAQAAAP8AAAD+gAAAAIADgAAA/oAAAAGAAAD8gAAAAYAAAP6AAAAAAQCAAIADgAQAAAsAAAEBAQEBAQEBAQEBAQCAAAABAAAA/wAAAAMAAAD/AAAAAQAAAACAAIAAAAKAAAAAgAAA/4AAAP2AAAD/gAAAAAEAAACAA4AEAAANAAABAQEBAQEBAQEBAQEBAQCAAAD/gAAAAQAAAAGAAAD/AAAAAgAAAP+AAAAAgACAAAABAAAA/wAAAAKAAAAAgAAA/QAAAP+AAAEAAACAA4AEAAAdAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAAAAQAAAACAAAAAgAAAAIAAAAEAAAD/gAAA/4AAAP+AAAAAgAAAAIAAAACAAAD+gAAA/4AAAP+AAAAAgAOAAAD+gAAAAIAAAACAAAAAgAAA/4AAAP+AAAD/gAAA/4AAAP+AAAD/gAAA/4AAAACAAAAAgAAA/wAAAQAAAIADgAQAAAUAAAEBAQEBAQAAAAABAAAAAoAAAACAA4AAAP0AAAD/gAABAAAAgAOABAAAEwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAAAAQAAAACAAAAAgAAAAIAAAAEAAAD/AAAA/4AAAP+AAAD/gAAAAIADgAAA/4AAAP+AAAAAgAAAAIAAAPyAAAABgAAA/4AAAACAAAD+gAAAAAEAAACAA4AEAAATAAABAQEBAQEBAQEBAQEBAQEBAQEBAQAAAAABAAAAAIAAAACAAAAAgAAAAQAAAP8AAAD/gAAA/4AAAP+AAAAAgAOAAAD/gAAA/4AAAP+AAAABgAAA/IAAAACAAAAAgAAAAIAAAP6AAAAAAgAAAIADgAQAAAMADwAAAQEBAQEBAQEBAQEBAQEBAQKAAAD+gAAA/4AAAP+AAAAAgAAAAoAAAACAAAD/gAAAAQACgAAA/YD/gACAAAACgAAAAIAAAP+AAAD9gAAA/4AAAgAAAIADgAQAAAMADQAAAQEBAQEBAQEBAQEBAQECgAAA/oAAAP8AAAADAAAAAIAAAP+AAAD+AAAAAgABgAAA/oD+gAOAAAD/gAAA/oAAAP+AAAD/AAAAAAMAAACAA4AEAAADAAsAGQAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEDAAAAAIAAAP6AAAD/gAAAAQAAAP6AAAD/gAAA/4AAAACAAAACgAAAAIAAAP+AAAD/gAAAAIAAgAAA/4AAgACAAAAAgAAAAYAAAP2A/4AAgAAAAoAAAACAAAD/gAAA/gAAAP+AAAD/gAACAAAAgAOABAAABQAXAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQECAAAAAIAAAP6AAAD/AAAAAwAAAACAAAD/AAAAAIAAAACAAAD+gAAA/4AAAP+AAAACAACAAAABAAAA/oD+gAOAAAD/gAAA/oAAAP+AAAD/gAAA/4AAAACAAAAAgAAA/wAAAQAAAIADgAQAABsAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAgAAA/4AAAAEAAAABgAAA/gAAAP+AAAAAgAAAAgAAAACAAAD/AAAA/wAAAAIAAAAAgAAA/4AAAACAAIAAAACAAAD/gAAAAQAAAACAAAABAAAAAIAAAP+AAAD/gAAAAIAAAP8AAAD/gAAA/wAAAP+AAAAAAQCAAIADgAQAAAcAAAEBAQEBAQEBAYAAAP8AAAADAAAA/wAAAACAAwAAAACAAAD/gAAA/QAAAAABAAAAgAOABAAACwAAAQEBAQEBAQEBAQEBAIAAAP+AAAABAAAAAYAAAAEAAAD/gAAAAIAAgAAAAwAAAP0AAAADAAAA/QAAAP+AAAAAAQAAAIADgAQAABcAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQGAAAD/gAAA/4AAAP+AAAABAAAAAIAAAACAAAAAgAAAAQAAAP+AAAD/gAAA/4AAAACAAIAAAACAAAAAgAAAAgAAAP6AAAD/gAAAAIAAAAGAAAD+AAAA/4AAAP+AAAD/gAAAAAEAAACAA4AEAAATAAABAQEBAQEBAQEBAQEBAQEBAQEBAQAAAAABAAAAAIAAAACAAAAAgAAAAQAAAP8AAAD/gAAA/4AAAP+AAAAAgAOAAAD+gAAAAIAAAP+AAAABgAAA/IAAAACAAAAAgAAA/4AAAP+AAAAAAQAAAIADgAQAACMAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAAAAAAgAAAAIAAAP+AAAD/gAAAAQAAAACAAAAAgAAAAIAAAAEAAAD/gAAA/4AAAACAAAAAgAAA/wAAAP+AAAD/gAAA/4AAAACAAQAAAACAAAAAgAAAAIAAAAEAAAD/gAAA/4AAAACAAAAAgAAA/wAAAP+AAAD/gAAA/4AAAP8AAAAAgAAAAIAAAP+AAAD/gAAAAAEAgACAA4AEAAAPAAABAQEBAQEBAQEBAQEBAQEBAYAAAP+AAAD/gAAAAQAAAAEAAAABAAAA/4AAAP+AAAAAgAGAAAAAgAAAAYAAAP6AAAABgAAA/oAAAP+AAAD+gAAAAAEAAACAA4AEAAAXAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAAAAIAAAACAAAAAgAAAAIAAAP4AAAADgAAA/4AAAP+AAAD/gAAA/4AAAAIAAAAAgAEAAAAAgAAAAIAAAACAAAAAgAAAAIAAAP8AAAD/gAAA/4AAAP+AAAD/gAAA/4AAAAABAQAAgAKABAAABwAAAQEBAQEBAQEBAAAAAYAAAP+AAAAAgAAAAIADgAAA/4AAAP2AAAD/gAAAAAcAAACAA4AEAAADAAcACwAPABMAFwAbAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAwAAAACAAAD/AAAAAIAAAP8AAAAAgAAA/wAAAACAAAD/AAAAAIAAAP8AAAAAgAAA/wAAAACAAAAAgACAAAD/gACAAIAAAP+AAIAAgAAA/4AAgACAAAD/gACAAIAAAP+AAIAAgAAA/4AAgACAAAD/gAAAAAEBAACAAoAEAAAHAAABAQEBAQEBAQEAAAAAgAAA/4AAAAGAAAAAgACAAAACgAAAAIAAAPyAAAAAAQAAAgADgAQAABcAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAAAAAAgAAAAIAAAACAAAAAgAAAAIAAAACAAAAAgAAA/wAAAP+AAAD/gAAA/4AAAAIAAIAAAACAAAAAgAAAAIAAAP+AAAD/gAAA/4AAAP+AAAAAgAAAAIAAAP+AAAD/gAAAAAEAAACAA4ABAAADAAABAQEBAAAAAAOAAAAAgACAAAD/gAAAAAIAgAKAAgAEAAADAAkAAAEBAQEBAQEBAQEBgAAAAIAAAP8AAAD/gAAAAQAAAAKAAIAAAP+AAIAAgAAAAIAAAP8AAAAAAgAAAIADgAOAAAcAFwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAoAAAP+AAAD/gAAA/4AAAP8AAAAAgAAAAIAAAAGAAAAAgAAAAIAAAP8AAAD+gAAAAYABAAAAAIAAAP+AAAD/AP8AAgAAAACAAAAAgAAA/4AAAP+AAAD+AAAAAIAAAP+AAAMAAACAA4ADgAADAAcAEwAAAQEBAQEBAQEBAQEBAQEBAQEBAQECgAAA/oAAAAGAAAD+gAAA/wAAAAMAAAAAgAAA/4AAAACAAAD/gAAAAQABAAAA/wABgACAAAD/gP4AAwAAAP+AAAD/gAAA/4AAAP8AAAD/gAAAAAEAAACAA4ADgAATAAABAQEBAQEBAQEBAQEBAQEBAQEBAQCAAAD/gAAAAIAAAAKAAAAAgAAA/wAAAP6AAAABgAAAAQAAAP+AAAAAgACAAAACAAAAAIAAAP+AAAD/gAAAAIAAAP4AAAAAgAAA/4AAAP+AAAAAAgAAAIADgAOAAAMACwAAAQEBAQEBAQEBAQEBAoAAAP6AAAD/AAAAAwAAAACAAAD/gAAAAQACAAAA/gD/gAMAAAD/gAAA/gAAAP+AAAEAAACAA4ADgAALAAABAQEBAQEBAQEBAQEAAAAAA4AAAP2AAAACAAAA/gAAAAKAAAAAgAMAAAD/gAAA/4AAAP+AAAD/AAAA/4AAAAABAAAAgAOAA4AACQAAAQEBAQEBAQEBAQAAAAADgAAA/YAAAAIAAAD+AAAAAIADAAAA/4AAAP8AAAD/gAAA/wAAAQAAAIADgAOAAA8AAAEBAQEBAQEBAQEBAQEBAQEAgAAA/4AAAACAAAACgAAA/gAAAAGAAAD/AAAAAgAAAACAAIAAAAIAAAAAgAAA/4AAAP4AAAAAgAAAAIAAAP6AAAAAAQAAAIADgAOAAAsAAAEBAQEBAQEBAQEBAQAAAAABAAAAAYAAAAEAAAD/AAAA/oAAAACAAwAAAP8AAAABAAAA/QAAAAGAAAD+gAAAAAEBAACAAwADgAALAAABAQEBAQEBAQEBAQEBAAAAAIAAAP+AAAACAAAA/4AAAACAAAAAgACAAAACAAAAAIAAAP+AAAD+AAAA/4AAAAABAAAAgAOAA4AADwAAAQEBAQEBAQEBAQEBAQEBAQCAAAD/gAAAAQAAAAEAAAD/gAAAAgAAAP+AAAD/gAAAAIAAgAAAAIAAAP+AAAACAAAAAIAAAP+AAAD+AAAA/4AAAAACAAAAgAOAA4AABQAXAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQECAAAAAIAAAAEAAAD8gAAAAQAAAACAAAAAgAAAAYAAAP8AAAD/gAAA/4AAAP+AAAAAgAEAAAD/gAAA/4AAAAMAAAD/AAAAAIAAAACAAAD/gAAA/4AAAP8AAAAAgAAA/oAAAQAAAIADgAOAAAUAAAEBAQEBAQAAAAABAAAAAoAAAACAAwAAAP2AAAD/gAABAAAAgAOAA4AAEwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAAAAQAAAACAAAAAgAAAAIAAAAEAAAD/AAAA/4AAAP+AAAD/gAAAAIADAAAA/4AAAP+AAAAAgAAAAIAAAP0AAAABgAAA/4AAAACAAAD+gAAAAAEAAACAA4ADgAATAAABAQEBAQEBAQEBAQEBAQEBAQEBAQAAAAABAAAAAIAAAACAAAAAgAAAAQAAAP8AAAD/gAAA/4AAAP+AAAAAgAMAAAD/gAAA/4AAAP+AAAABgAAA/QAAAACAAAAAgAAAAIAAAP6AAAAAAgAAAIADgAOAAAMADwAAAQEBAQEBAQEBAQEBAQEBAQKAAAD+gAAA/4AAAP+AAAAAgAAAAoAAAACAAAD/gAAAAQACAAAA/gD/gACAAAACAAAAAIAAAP+AAAD+AAAA/4AAAgAAAIADgAOAAAMADQAAAQEBAQEBAQEBAQEBAQECgAAA/oAAAP8AAAADAAAAAIAAAP+AAAD+AAAAAYABgAAA/oD/AAMAAAD/gAAA/oAAAP+AAAD/gAAAAAMAAACAA4ADgAADAAkAFwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAYAAAACAAAAAAAAAAIAAAP6AAAD/gAAA/4AAAACAAAACgAAAAIAAAP+AAAAAgAAAAYAAgAAA/4D/gACAAAABgAAA/gD/gACAAAACAAAAAIAAAP+AAAD+gAAA/4AAAP+AAAAAAgAAAIADgAOAAAMAEwAAAQEBAQEBAQEBAQEBAQEBAQEBAQECgAAA/oAAAP8AAAADAAAAAIAAAP+AAAAAgAAA/wAAAP+AAAD/AAAAAgABAAAA/wD+gAMAAAD/gAAA/wAAAP8AAAD/gAAAAIAAAACAAAD/AAABAAAAgAOAA4AAEwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAAAAoAAAP4AAAD/gAAAAIAAAAKAAAD+AAAAAgAAAACAAAD/gAAAAIAAgAAAAQAAAACAAAAAgAAAAIAAAP+AAAD/gAAA/4AAAP8AAAD/gAAAAAEAgACAA4ADgAAHAAABAQEBAQEBAQGAAAD/AAAAAwAAAP8AAAAAgAKAAAAAgAAA/4AAAP2AAAAAAQAAAIADgAOAAAsAAAEBAQEBAQEBAQEBAQCAAAD/gAAAAQAAAAGAAAABAAAA/4AAAACAAIAAAAKAAAD9gAAAAoAAAP2AAAD/gAAAAAEAAACAA4ADgAAXAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBgAAA/4AAAP+AAAD/gAAAAQAAAACAAAAAgAAAAIAAAAEAAAD/gAAA/4AAAP+AAAAAgACAAAAAgAAAAIAAAAGAAAD+gAAA/4AAAACAAAABgAAA/oAAAP+AAAD/gAAA/4AAAAABAAAAgAOAA4AAEwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAAAAQAAAACAAAAAgAAAAIAAAAEAAAD/AAAA/4AAAP+AAAD/gAAAAIADAAAA/oAAAACAAAD/gAAAAYAAAP0AAAAAgAAAAIAAAP+AAAD/gAAAAAEAAACAA4ADgAAjAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAAAAIAAAACAAAD/gAAA/4AAAAEAAAAAgAAAAIAAAACAAAABAAAA/4AAAP+AAAAAgAAAAIAAAP8AAAD/gAAA/4AAAP+AAAAAgACAAAAAgAAAAQAAAACAAAAAgAAA/4AAAP+AAAAAgAAAAIAAAP+AAAD/gAAA/wAAAP+AAAD/gAAAAIAAAACAAAD/gAAA/4AAAAABAIAAgAOAA4AADwAAAQEBAQEBAQEBAQEBAQEBAQGAAAD/gAAA/4AAAAEAAAABAAAAAQAAAP+AAAD/gAAAAIABAAAAAIAAAAGAAAD+gAAAAYAAAP6AAAD/gAAA/wAAAAABAAAAgAOAA4AAEwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAAAAIAAAAEAAAABAAAA/YAAAAOAAAD/gAAA/wAAAP8AAAACgAAAAIABAAAAAIAAAACAAAAAgAAAAIAAAP8AAAD/gAAA/4AAAP+AAAD/gAAAAAEAgACAAoAEAAATAAABAQEBAQEBAQEBAQEBAQEBAQEBAQGAAAD/gAAA/4AAAACAAAAAgAAAAQAAAP+AAAD/gAAAAIAAAACAAAAAgACAAAABAAAAAIAAAAEAAAAAgAAA/4AAAP8AAAD/gAAA/wAAAP+AAAAAAQEAAIACAAQAAAMAAAEBAQEBAAAAAQAAAACAA4AAAPyAAAAAAQEAAIADAAQAABMAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQAAAACAAAAAgAAA/4AAAP+AAAABAAAAAIAAAACAAAD/gAAA/4AAAACAAIAAAAEAAAAAgAAAAQAAAACAAAD/gAAA/wAAAP+AAAD/AAAA/4AAAAABAAABAAOAAwAAEwAAAQEBAQEBAQEBAQEBAQEBAQEBAQECAAAA/4AAAP8AAAD/gAAAAIAAAAEAAAAAgAAAAQAAAACAAAD/gAAAAQAAgAAAAIAAAP+AAAABAAAAAIAAAP+AAAD/gAAAAIAAAP8AAAD/gAAAAAIBAAKAAgAEAAAFAAkAAAEBAQEBAQEBAQEBAAAAAIAAAACAAAD/gAAAAIAAAAKAAQAAAP+AAAD/gAEAAIAAAP+AAAAAAgGAAoACgAQAAAMACQAAAQEBAQEBAQEBAQGAAAAAgAAAAAAAAP+AAAABAAAAAoAAgAAA/4AAgACAAAAAgAAA/wAAAAAEAIACgAMABAAABQALAA8AEwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEAgAAAAIAAAACAAAAAgAAAAIAAAACAAAD+AAAAAIAAAAEAAAAAgAAAAoABAAAA/4AAAP+AAAABAAAA/4AAAP+AAQAAgAAA/4AAAACAAAD/gAAEAIACgAMABAAAAwAHAA0AEwAAAQEBAQEBAQEBAQEBAQEBAQEBAQEAgAAAAIAAAAEAAAAAgAAA/oAAAP+AAAABAAAAAQAAAP+AAAABAAAAAoAAgAAA/4AAAACAAAD/gACAAIAAAACAAAD/AAAAAIAAAACAAAD/AAAAADACRgAAAAAAAAAAACgAAAAAAAAAAAABABIAKAAAAAAAAAACAA4AOgAAAAAAAAADABIASAAAAAAAAAAEACIAWgAAAAAAAAAFABYAfAAAAAAAAAAGABAAkgAAAAAAAAAHAFYAogAAAAAAAAAIACwA+AAAAAAAAAAJAAoBJAAAAAAAAAAKAEwBLgAAAAAAAAALAHgBegAAAAAAAAAMAG4B8gAAAAAAAAANACQCYAAAAAAAAAATAFIChAAAAAAAAAEAABgC1gABAAAAAAAAABQC7gABAAAAAAABAAkDAgABAAAAAAACAAcDCwABAAAAAAADAAkDEgABAAAAAAAEABEDGwABAAAAAAAFAAsDLAABAAAAAAAGAAgDNwABAAAAAAAHACsDPwABAAAAAAAIABYDagABAAAAAAAJAAUDgAABAAAAAAAKACUDhQABAAAAAAALADwDqgABAAAAAAAMADcD5gABAAAAAAANABIEHQABAAAAAAATACkELwABAAAAAAEAAAwEWAADAAEECQAAACgEZAADAAEECQABABIEjAADAAEECQACAA4EngADAAEECQADABIErAADAAEECQAEACIEvgADAAEECQAFABYE4AADAAEECQAGABAE9gADAAEECQAHAFYFBgADAAEECQAIACwFXAADAAEECQAJAAoFiAADAAEECQAKAEwFkgADAAEECQALAHgF3gADAAEECQAMAG4GVgADAAEECQANACQGxAADAAEECQATAFIG6AADAAEECQEAABgHOgBDAG8AcAB5AHIAaQBnAGgAdAAgAFIAdQBpAGwAeAAgADIAMAAxADUATgBFAFMAIABQAGkAeABlAGwAUgBlAGcAdQBsAGEAcgBOAEUAUwAgAFAAaQB4AGUAbABOAEUAUwAgAFAAaQB4AGUAbAAgAFIAZQBnAHUAbABhAHIAVgBlAHIAcwBpAG8AbgAgADEALgAwAE4ARQBTAFAAaQB4AGUAbABGAG8AbgB0AFMAdAByAHUAYwB0ACAAaQBzACAAYQAgAHQAcgBhAGQAZQBtAGEAcgBrACAAbwBmACAARgBvAG4AdABTAHQAcgB1AGMAdAAuAGMAbwBtAGgAdAB0AHAAcwA6AC8ALwBmAG8AbgB0AHMAdAByAHUAYwB0AC4AYwBvAG0AUgB1AGkAbAB4IBwATgBFAFMAIABQAGkAeABlAGwgHQAgAHcAYQBzACAAYgB1AGkAbAB0ACAAdwBpAHQAaAAgAEYAbwBuAHQAUwB0AHIAdQBjAHQACgBoAHQAdABwAHMAOgAvAC8AZgBvAG4AdABzAHQAcgB1AGMAdAAuAGMAbwBtAC8AZgBvAG4AdABzAHQAcgB1AGMAdABpAG8AbgBzAC8AcwBoAG8AdwAvADEAMQA5ADgANAA0ADUALwBuAGUAcwBfAHAAaQB4AGUAbABoAHQAdABwAHMAOgAvAC8AZgBvAG4AdABzAHQAcgB1AGMAdAAuAGMAbwBtAC8AZgBvAG4AdABzAHQAcgB1AGMAdABvAHIAcwAvAHMAaABvAHcALwAxADEAOQA3ADcAMAA0AC8AcgB1AGkAbAB4AEYAbwBuAHQAUwB0AHIAdQBjAHQAIABMAGkAYwBlAG4AcwBlAEYAaQB2AGUAIABiAGkAZwAgAHEAdQBhAGMAawBpAG4AZwAgAHoAZQBwAGgAeQByAHMAIABqAG8AbAB0ACAAbQB5ACAAdwBhAHgAIABiAGUAZABBAHcAZwBCAGYAVgAxAGcAVwB3AD0APUNvcHlyaWdodCBSdWlseCAyMDE1TkVTIFBpeGVsUmVndWxhck5FUyBQaXhlbE5FUyBQaXhlbCBSZWd1bGFyVmVyc2lvbiAxLjBORVNQaXhlbEZvbnRTdHJ1Y3QgaXMgYSB0cmFkZW1hcmsgb2YgRm9udFN0cnVjdC5jb21odHRwczovL2ZvbnRzdHJ1Y3QuY29tUnVpbHjSTkVTIFBpeGVs0yB3YXMgYnVpbHQgd2l0aCBGb250U3RydWN0aHR0cHM6Ly9mb250c3RydWN0LmNvbS9mb250c3RydWN0aW9ucy9zaG93LzExOTg0NDUvbmVzX3BpeGVsaHR0cHM6Ly9mb250c3RydWN0LmNvbS9mb250c3RydWN0b3JzL3Nob3cvMTE5NzcwNC9ydWlseEZvbnRTdHJ1Y3QgTGljZW5zZUZpdmUgYmlnIHF1YWNraW5nIHplcGh5cnMgam9sdCBteSB3YXggYmVkQXdnQmZWMWdXdz09AEMAbwBwAHkAcgBpAGcAaAB0ACAAUgB1AGkAbAB4ACAAMgAwADEANQBOAEUAUwAgAFAAaQB4AGUAbABSAGUAZwB1AGwAYQByAE4ARQBTACAAUABpAHgAZQBsAE4ARQBTACAAUABpAHgAZQBsACAAUgBlAGcAdQBsAGEAcgBWAGUAcgBzAGkAbwBuACAAMQAuADAATgBFAFMAUABpAHgAZQBsAEYAbwBuAHQAUwB0AHIAdQBjAHQAIABpAHMAIABhACAAdAByAGEAZABlAG0AYQByAGsAIABvAGYAIABGAG8AbgB0AFMAdAByAHUAYwB0AC4AYwBvAG0AaAB0AHQAcABzADoALwAvAGYAbwBuAHQAcwB0AHIAdQBjAHQALgBjAG8AbQBSAHUAaQBsAHggHABOAEUAUwAgAFAAaQB4AGUAbCAdACAAdwBhAHMAIABiAHUAaQBsAHQAIAB3AGkAdABoACAARgBvAG4AdABTAHQAcgB1AGMAdAAKAGgAdAB0AHAAcwA6AC8ALwBmAG8AbgB0AHMAdAByAHUAYwB0AC4AYwBvAG0ALwBmAG8AbgB0AHMAdAByAHUAYwB0AGkAbwBuAHMALwBzAGgAbwB3AC8AMQAxADkAOAA0ADQANQAvAG4AZQBzAF8AcABpAHgAZQBsAGgAdAB0AHAAcwA6AC8ALwBmAG8AbgB0AHMAdAByAHUAYwB0AC4AYwBvAG0ALwBmAG8AbgB0AHMAdAByAHUAYwB0AG8AcgBzAC8AcwBoAG8AdwAvADEAMQA5ADcANwAwADQALwByAHUAaQBsAHgARgBvAG4AdABTAHQAcgB1AGMAdAAgAEwAaQBjAGUAbgBzAGUARgBpAHYAZQAgAGIAaQBnACAAcQB1AGEAYwBrAGkAbgBnACAAegBlAHAAaAB5AHIAcwAgAGoAbwBsAHQAIABtAHkAIAB3AGEAeAAgAGIAZQBkAEEAdwBnAEIAZgBWADEAZwBXAHcAPQA9AAMAAAAAAAAAZgAzAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAA==) format('truetype');
+  font-display: block;
 }
-*{box-sizing:border-box}
-html,body{margin:0;padding:0;height:100%;background:#0d0f13;color:var(--ink);
-  font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  overflow:hidden}
-#viewport{position:relative;width:100%;height:100%;display:flex;
-  align-items:center;justify-content:center}
-#stage{position:relative;width:100%;height:100%;display:flex;
-  align-items:center;justify-content:center}
-#board{display:block;width:min(100vw,100vh);height:min(100vw,100vh);
-  background:#14171c;border-radius:calc(6*var(--u))}
-#lightpool{position:absolute;inset:0;pointer-events:none;
-  background:radial-gradient(ellipse at 50% 42%,rgba(255,255,255,0.06),
-    rgba(0,0,0,0.55) 78%)}
-#grain{position:absolute;inset:0;pointer-events:none;opacity:.05;
-  background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.4) 0 1px,
-    transparent 1px 3px)}
-#chrome{position:absolute;inset:0;pointer-events:none}
-#chrome > *{pointer-events:auto}
 
-/* --- scorebug --------------------------------------------------------- */
-#scorebug{position:absolute;top:calc(8*var(--u));left:0;right:0;display:flex;
-  justify-content:space-between;gap:calc(6*var(--u));
-  padding:0 calc(10*var(--u))}
-#plates-l,#plates-r{display:flex;flex-direction:column;gap:calc(4*var(--u));
-  min-width:0;flex:1 1 0}
-#plates-r{align-items:flex-end}
-.plate{display:flex;align-items:center;gap:calc(6*var(--u));min-width:0;
-  max-width:calc(230*var(--u));background:var(--panel);
-  border:1px solid var(--edge);border-radius:calc(5*var(--u));
-  padding:calc(3*var(--u)) calc(8*var(--u));
-  font-size:calc(13*var(--u));line-height:1.25;opacity:.82}
-.plate.leader{opacity:1;border-color:rgba(215,228,255,0.5)}
-.chip{width:calc(9*var(--u));height:calc(9*var(--u));border-radius:2px;
-  flex:0 0 auto}
+@font-face {
+  font-family: 'rajdhani';
+  src: url('./font.ttf') format('truetype');
+  font-display: block;
+}
+
+:root {
+  --stage-lo: #16110d;
+  --stage-hi: #241a12;
+  --paper: #f2e8d8;
+  --paper-dim: #b8ac98;
+  --ink: #2a1f16;
+  --ink-soft: rgba(20, 14, 9, 0.62);
+  --red: #e0523a;
+  --blue: #3f7cc4;
+  --green: #45a85e;
+  --yellow: #ddc531;
+  --amber: #e8a33d;
+  --ghost: #8a7f72;
+  --hudscale: 1;
+  /* chrome measures derive off the CONTAINER via --hudscale, not the viewport */
+  --u: calc(1px * var(--hudscale));
+  --pixfont: 'rajdhani', 'Segoe UI', system-ui, sans-serif;
+  --finefont: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  /* The letterbox around the composition — warm near-black, NEVER pure #000.
+     The Observatory embed hands us an arbitrary box; the fixed-aspect stage is
+     centered inside it and this warm tone fills whatever is left over. */
+  background: #120d09;
+  color: var(--paper);
+  font-family: var(--finefont);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The embed box. The stage is ONE fixed-aspect composition centered inside it;
+   board + every overlay live in the stage and scale together as a single unit
+   (§2/L82: chrome sizes off the CONTAINER, not the viewport), so overlays never
+   drift from the graphics at any embed size. */
+#viewport {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+#stage {
+  position: relative;
+  /* width/height are set in px by relayout() to the board's native aspect
+     (1235:659) fitted into #viewport; the canvas fills it exactly (matching
+     aspect → no internal letterbox) and all chrome is pinned in this space. */
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(120% 90% at 50% 38%, var(--stage-hi) 0%, var(--stage-lo) 72%);
+  overflow: hidden;
+}
+
+/* The board fills the frame ABOVE the reserved transport band; broadcast_core
+   letterboxes it to native aspect. --band is the bottom strip (set by relayout)
+   where the transport lives, so no chrome ever sits over play. */
+#board {
+  position: absolute;
+  left: 0;
+  /* canvas is a replaced element: `inset` won't stretch it, so size explicitly.
+     The board sits BETWEEN the reserved scorebug band (top) and transport band
+     (bottom), so no chrome ever overlaps play. */
+  top: var(--topband, 0px);
+  width: 100%;
+  height: calc(100% - var(--topband, 0px) - var(--band, 0px));
+  display: block;
+  image-rendering: pixelated;
+  /* One-finger drags belong to the PAGE while the board is fitted; syncTouchAction
+     takes them back (touch-action: none) once there is somewhere to pan. Neither
+     value permits pinch-zoom, so the second finger always reaches our handler
+     instead of zooming the document. */
+  touch-action: pan-x pan-y;
+}
+
+/* A soft light pool focuses the eye on the arena (not a literal set). Matches
+   the board area so it never darkens the reserved transport band below. */
+#lightpool {
+  position: absolute;
+  inset: var(--topband, 0px) 0 var(--band, 0px) 0;
+  pointer-events: none;
+  background:
+    radial-gradient(70% 58% at 50% 46%, transparent 40%, rgba(12, 8, 5, 0.34) 100%);
+  z-index: 2;
+}
+
+/* CRT phosphor grain drift — ambient, paused under prefers-reduced-motion. */
+#grain {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  opacity: 0.05;
+  z-index: 3;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(0,0,0,0.5) 0 1px, transparent 1px 3px);
+  animation: graindrift 7s steps(4) infinite;
+}
+@keyframes graindrift { to { transform: translateY(3px); } }
+
+#chrome {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  font-family: var(--pixfont);
+}
+#chrome > * { pointer-events: auto; }
+
+/* Team color utility: any chrome element carrying a team-name class exposes
+   that team's tint as --tc, and every team-colored rule below reads
+   var(--tc, <neutral fallback>). Supporting a new team = one line here plus
+   its art — no per-team selector pairs anywhere else. */
+.red { --tc: var(--red); }
+.blue { --tc: var(--blue); }
+.green { --tc: var(--green); }
+.yellow { --tc: var(--yellow); }
+
+/* ---------- 1. TOP-BAND SCOREBUG ---------- */
+#scorebug {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  display: grid;
+  /* minmax(0,1fr), NOT 1fr: a bare 1fr track floors at its content's min-content
+     width, so a long team name would blow the side track out and shove the center
+     clock off-center. minmax(0,…) lets each side shrink to 0 and clip via the
+     name's own ellipsis at the TRUE track edge — the name then uses all the plate
+     room there actually is, instead of an arbitrary hard cap. */
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  /* Shrink the whole scorebug group (names, lives numerals, labels, squad pips,
+     clock) 20% by scaling the local unit — every measure below derives from --u,
+     so one override rescales the band without touching per-element sizes. */
+  --u: calc(1px * var(--hudscale) * 0.8);
+  gap: calc(6 * var(--u));
+  padding: calc(6 * var(--u)) calc(12 * var(--u)) calc(7 * var(--u));
+  /* Dedicated top band: a solid warm-dark strip that lives ABOVE the board (its
+     measured height = --topband, reserved by relayout), so the scorebug never
+     covers play — grenades/players at the top rows stay fully visible. Mirrors
+     the bottom transport band. */
+  box-sizing: border-box;
+  background: var(--stage-lo);
+  box-shadow: inset 0 calc(-1 * var(--u)) 0 rgba(242, 232, 216, 0.06);
+}
+
+/* One side of the scorebug: one plate per side for classic red/blue (exactly
+   the old layout); a 3-4 team game puts BOTH of a side's plates on the same
+   row (outer team at the screen edge, inner team beside the clock), so all
+   four teams read on one line across the band. */
+.plates {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: calc(5 * var(--u));
+  min-width: 0;
+}
+.plates.row { flex-direction: row; align-items: center; gap: calc(18 * var(--u)); }
+.plates.row .plate { flex: 1 1 0; }
+.plate {
+  display: flex;
+  align-items: center;
+  gap: calc(9 * var(--u));
+  min-width: 0;
+}
+/* Orientation is a SIDE property, not a color property: right-side plates
+   mirror so both team names stay innermost, flanking the clock. */
+.plate.side-r { flex-direction: row-reverse; text-align: right; }
+
+.plate .team-id { min-width: 0; }
+.plate .team-name {
+  font-family: var(--pixfont);
+  font-size: calc(16 * var(--u));
+  letter-spacing: 0.5px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Inline with Lives + count on ONE row. Let the name shrink and ellipsis so a
+     long policy name never pushes the label/count off the plate; the label and
+     numeral hold their size. Full name still reads in the CARRYING line + roster.
+     No max-width: the minmax(0,1fr) side track already bounds it, so the name
+     grows to the full plate width and only ellipsizes when it genuinely runs out
+     of room — not at an arbitrary early cap. */
+  flex: 0 1 auto;
+  min-width: 0;
+  text-shadow: 0 calc(2 * var(--u)) 0 var(--ink);
+}
+.plate .team-name { color: var(--tc, var(--paper)); }
+
+/* One baseline row with the TEAM NAME innermost (toward the center clock):
+   a left plate reads "32 LIVES RED", a right plate reads "BLUE LIVES 32", so
+   names flank the clock. Left reverses; right keeps DOM order (name → label → num). */
+.plate .lives-line {
+  display: flex;
+  align-items: baseline;
+  gap: calc(6 * var(--u));
+}
+.plate.side-l .lives-line { flex-direction: row-reverse; }
+.lives-num {
+  font-family: var(--pixfont);
+  font-size: calc(20 * var(--u));
+  line-height: 1;
+  color: var(--paper);
+  flex: none;
+}
+.lives-label {
+  font-family: var(--finefont);
+  font-size: calc(8 * var(--u));
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+  flex: none;
+}
+/* center clock pill + phase */
+.clock {
+  position: relative; /* anchors the fast-forward mini indicator */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: calc(3 * var(--u));
+  padding-top: calc(1 * var(--u));
+}
+/* Tiny amber ▸▸ riding the right of the match clock while skip-lulls is
+   actually fast-forwarding — the at-a-glance "time is compressed" cue. */
+.ffwd-mini {
+  display: none;
+  position: absolute;
+  left: calc(100% + 5 * var(--u));
+  top: calc(6 * var(--u));
+  font-family: var(--pixfont);
+  font-size: calc(12 * var(--u));
+  color: var(--amber);
+  text-shadow: 0 calc(2 * var(--u)) 0 var(--ink);
+}
+.ffwd-mini.show { display: block; }
+.clock .time {
+  font-family: var(--pixfont);
+  /* The clock is the centerpiece: with the name folded into the lives row the
+     side plates are one row shorter, so grow the time numeral into that freed
+     vertical space and let it anchor the band. */
+  font-size: calc(30 * var(--u));
+  line-height: 1;
+  color: var(--paper);
+  text-shadow: 0 calc(2 * var(--u)) 0 var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.clock .caption {
+  font-family: var(--finefont);
+  font-size: calc(8.5 * var(--u));
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+  white-space: nowrap;
+}
+.clock.tiebreak-warn .time { color: var(--amber); }
+
+/* Center column holds just the clock now — the capture-chase gauge was retired
+   in favor of the two bottom carry indicators. */
+.clock-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(4 * var(--u));
+}
+
+/* Clock pill soft tick — the third chrome ambient (§11). A near-imperceptible
+   breathe on the pill, so the countdown reads as a live instrument, not a label. */
+.clock.amb { animation: clocktick 2s ease-in-out infinite; }
+@keyframes clocktick { 0%,100% { opacity: 0.94; } 50% { opacity: 1; } }
+
+/* leader pulse when a team's lives lead is >=3 */
+.plate.leader .lives-num { animation: leaderpulse 1.9s ease-in-out infinite; }
+@keyframes leaderpulse { 0%,100% { text-shadow: none; } 50% { text-shadow: 0 0 calc(10 * var(--u)) var(--amber); } }
+
+/* Beat-pause (§11): idle systems freeze the instant a beat lands, so ambient
+   never competes with a kill/steal/capture for the eye. Applied on #stage; the
+   engine-driven board (24Hz) is untouched — only chrome ambient pauses. */
+#stage.beat-active .amb,
+#stage.beat-active .plate.leader .lives-num { animation-play-state: paused; }
+
+/* ---------- 3. BANNER LANE ---------- */
+#bannerlane {
+  position: absolute;
+  top: calc(78 * var(--u));
+  left: 0; right: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 12;
+  min-height: calc(26 * var(--u)); /* reserved slot: layout never jumps */
+}
+.banner-chip {
+  font-family: var(--pixfont);
+  font-size: calc(13 * var(--u));
+  letter-spacing: 0.06em;
+  padding: calc(6 * var(--u)) calc(14 * var(--u));
+  color: var(--paper);
+  background: var(--ink-soft);
+  border-bottom: calc(3 * var(--u)) solid var(--amber);
+  text-transform: uppercase;
+  white-space: nowrap;
+  animation: chippop 300ms cubic-bezier(.2,1.4,.4,1);
+}
+.banner-chip.steal { border-bottom-color: var(--amber); }
+.banner-chip.returned { border-bottom-color: var(--paper-dim); }
+.banner-chip.wipe { border-bottom-color: var(--tc, var(--red)); font-size: calc(15 * var(--u)); }
+/* the acting team's tint rides as a left accent bar (any team color) */
+.banner-chip.accent { box-shadow: inset calc(4 * var(--u)) 0 0 var(--tc, var(--amber)); }
+.banner-chip.leaving { animation: chipfade 260ms ease-in forwards; }
+@keyframes chippop { from { transform: translateY(calc(-8 * var(--u))) scale(0.9); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes chipfade { to { opacity: 0; transform: translateY(calc(-4 * var(--u))); } }
+
+/* ---------- 2. KILL FEED ---------- */
+#killfeed {
+  position: absolute;
+  /* Bottom-right, clear of the blue scorebug/roster (top) and the transport
+     bar (bottom). column-reverse so the newest row sits lowest, nearest the
+     transport, and older kills stack upward — a broadcast lower-third feed. */
+  /* Above the transport band AND the nameplate row that rides on it. */
+  bottom: calc(var(--band, 0px) + 40 * var(--u));
+  right: calc(12 * var(--u));
+  display: flex;
+  flex-direction: column-reverse;
+  gap: calc(4 * var(--u));
+  align-items: flex-end;
+  width: calc(228 * var(--u));
+  min-height: calc(4 * 22 * var(--u)); /* fixed 4-row reserve */
+  z-index: 11;
+  /* Rows are display-only (no click handlers) — never let the feed intercept a
+     drag meant for the PiP or the board beneath it. */
+  pointer-events: none;
+}
+.feed-row {
+  display: flex;
+  align-items: center;
+  gap: calc(5 * var(--u));
+  padding: calc(3 * var(--u)) calc(7 * var(--u));
+  background: var(--ink-soft);
+  font-family: var(--pixfont);
+  /* A touch smaller than the scorebug type so full 8-char names stay compact;
+     everything is in --u so the row scales with the board (responsive). */
+  font-size: calc(8 * var(--u));
+  line-height: 1;
+  /* Size to content so full names never truncate; rows are right-anchored
+     (align-items:flex-end on #killfeed) so a long row grows leftward — bounded
+     by the small font + the pre-bounded 10-char name, so it can't run away. */
+  max-width: none;
+  white-space: nowrap;
+  animation: feedin 250ms cubic-bezier(.2,1.3,.5,1);
+}
+.feed-row.leaving { animation: feedout 260ms ease-in forwards; }
+@keyframes feedin { from { transform: translateX(calc(30 * var(--u))); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes feedout { to { opacity: 0; transform: translateX(calc(14 * var(--u))); } }
+.feed-row .who { white-space: nowrap; }  /* names are pre-bounded to 10 chars by shortName(); show in full, never ellipsize */
+.feed-row .who { color: var(--tc, var(--paper)); }
+.feed-row .glyph { color: var(--paper); font-size: calc(9 * var(--u)); }
+.feed-row .badge {
+  font-family: var(--finefont);
+  font-size: calc(7 * var(--u));
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: calc(1 * var(--u)) calc(4 * var(--u));
+  color: var(--stage-lo);
+  background: var(--amber);
+}
+.feed-row .badge.tk { background: var(--red); color: var(--paper); }
+.feed-row.flagkill { box-shadow: inset 0 calc(-2 * var(--u)) 0 var(--amber); }
+
+/* Roster rails removed: per-player state now rides the scorebug squad strip
+   (the roster IS the counter, genre convention) and the board's own name tags.
+   No floating bordered rails over the arena flanks (in-world, no HUD chrome). */
+
+/* ---------- 5. TRANSPORT ---------- */
+#transport {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  /* Sits in the reserved band BELOW the board — relayout() measures this strip's
+     natural height and reserves that much (--band) at the bottom of the frame, so
+     the scrubber and buttons never overlap play. A solid warm-dark strip, not a
+     fade — there is no arena underneath it to wash over. */
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: calc(5 * var(--u));
+  padding: calc(8 * var(--u)) calc(12 * var(--u)) calc(8 * var(--u));
+  background: var(--stage-lo);
+  box-shadow: inset 0 calc(1 * var(--u)) 0 rgba(242, 232, 216, 0.06);
+}
+#transport.disabled { opacity: 0.35; pointer-events: none; }
+
+/* scrubber: click-to-seek track (top) over a full-timeline momentum graph.
+   The seek track and the momentum graph share the SAME 0→maxTicks x-axis, so
+   the playhead crosses the graph 1:1 with the timeline (no scrolling window). */
+.scrub {
+  position: relative;
+  height: calc(34 * var(--u));
+  cursor: pointer;
+}
+.scrub-track {
+  position: absolute;
+  left: 0; right: 0; top: calc(6 * var(--u));
+  height: calc(4 * var(--u));
+  background: rgba(242, 232, 216, 0.16);
+}
+.scrub-fill {
+  position: absolute;
+  left: 0; top: calc(6 * var(--u));
+  height: calc(4 * var(--u));
+  background: var(--paper);
+  width: 0;
+}
+.scrub-head {
+  /* spans track + graph so the playhead reads against the momentum curve */
+  position: absolute;
+  top: calc(2 * var(--u));
+  width: calc(3 * var(--u));
+  height: calc(30 * var(--u));
+  background: var(--amber);
+  transform: translateX(calc(-1.5 * var(--u)));
+  left: 0;
+  z-index: 3;
+}
+/* Full-timeline lives-lead graph, occupying the band UNDER the seek track. */
+.momentum {
+  position: absolute;
+  /* An inline <svg> is a REPLACED element: with width:auto it takes its
+     intrinsic viewBox ratio (1000×100 = 10:1) × height, NOT the left/right
+     box — so it renders ~10× its height wide (a short stub) instead of full
+     width. Pin width:100% so it spans the whole seek track, matching the
+     0→maxTicks x-axis the playhead rides. (preserveAspectRatio:none, so no
+     letterboxing when we override the ratio.) */
+  left: 0; width: 100%; top: calc(12 * var(--u));
+  height: calc(22 * var(--u));
+  display: block;
+  overflow: visible;
+}
+.momentum-label {
+  position: absolute;
+  left: 0; top: calc(13 * var(--u));
+  font-family: var(--finefont);
+  font-size: calc(6 * var(--u));
+  letter-spacing: 0.12em;
+  color: var(--paper-dim);
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 2;
+}
+/* Encounter events on the timeline: deaths, phase starts, the enrage,
+   interrupts and crucible soaks, each a button pinned at its tick on the
+   SAME 0->maxTicks axis as the seek track, so a click seeks straight to it.
+   Markers ahead of the playhead are hidden until "spoilers" is on. */
+.ev-lane {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: calc(12 * var(--u));
+  z-index: 4;
+  pointer-events: none;
+}
+.ev {
+  position: absolute;
+  top: 0;
+  width: max(calc(3 * var(--u)), 3px);
+  height: calc(12 * var(--u));
+  margin: 0; padding: 0; border: 0;
+  transform: translateX(-50%);
+  background: var(--paper-dim);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.ev::before {
+  /* a wider invisible hit box so a 3 px tick is still a fingertip target */
+  content: ''; position: absolute; inset: calc(-3 * var(--u)) calc(-5 * var(--u));
+}
+.ev::after {
+  content: ''; position: absolute; left: 50%; top: 0;
+  width: calc(7 * var(--u)); height: calc(7 * var(--u));
+  transform: translate(-50%, calc(-4 * var(--u)));
+  border-radius: 50%; background: inherit;
+}
+.ev:hover, .ev:focus-visible { filter: brightness(1.35); outline: none; z-index: 5; }
+.ev.death { background: #ff5a3a; }
+.ev.phase { background: var(--amber); }
+.ev.enrage { background: #d63031; height: calc(16 * var(--u)); }
+.ev.interrupt { background: #45a85e; }
+.ev.crucible { background: #e0523a; }
+.ev.crucible.soaked { background: #3f7cc4; }
+.ev.ahead { display: none; }
+.ev-tip {
+  position: absolute;
+  bottom: calc(100% + 6 * var(--u));
+  transform: translateX(-50%);
+  padding: calc(3 * var(--u)) calc(6 * var(--u));
+  background: rgba(12, 9, 6, 0.94);
+  box-shadow: 0 0 0 1px rgba(232, 163, 61, 0.3);
+  color: var(--paper);
+  font: 600 calc(9 * var(--u))/1.2 'Courier New', monospace;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 9;
+  display: none;
+}
+.ev-tip.show { display: block; }
+.beat-marker {
+  position: absolute;
+  top: 0;
+  width: calc(2 * var(--u));
+  height: calc(10 * var(--u));
+  transform: translateX(-1px);
+  z-index: 2;
+}
+/* kill ticks are short and colored by the KILLER's team (a red tick = red
+   scored a kill); team-kills and unattributable pileups stay neutral. */
+.beat-marker.kill { background: var(--tc, var(--paper-dim)); height: calc(6 * var(--u)); }
+/* flag beats are colored by the FLAG's team, matching the banners ("RED
+   HEART TAKEN"): steal = full tick with a flag head, return = same tick
+   dimmed (the heart snapped home), capture = the chunky match point in the
+   CAPTURING team's color. */
+.beat-marker.steal { background: var(--tc, var(--amber)); }
+.beat-marker.steal::after {
+  content: '';
+  position: absolute;
+  left: 0; top: 0;
+  width: calc(5 * var(--u));
+  height: calc(3 * var(--u));
+  background: inherit;
+}
+.beat-marker.return { background: var(--tc, var(--paper-dim)); opacity: 0.45; }
+.beat-marker.capture { background: var(--tc, var(--amber)); width: calc(3 * var(--u)); height: calc(12 * var(--u)); }
+/* winner cap: a flat block just past the track's right end, colored by the
+   verdict (split for a draw), so the scrubber itself says how this ends. */
+.scrub-win {
+  display: none;
+  position: absolute;
+  right: calc(-4 * var(--u));
+  top: calc(2 * var(--u));
+  width: calc(6 * var(--u));
+  height: calc(12 * var(--u));
+  z-index: 3;
+}
+.scrub-win.show { display: block; background: var(--tc, var(--paper-dim)); }
+/* verdict chip in the transport bar: "RED WINS" next to the tick clock. */
+.win-chip {
+  display: none;
+  font-family: var(--pixfont);
+  font-size: calc(9 * var(--u));
+  padding: 0 calc(6 * var(--u));
+  white-space: nowrap;
+}
+.win-chip.show { display: inline; }
+.win-chip.show { color: var(--tc, var(--paper-dim)); }
+
+.tbar {
+  display: flex;
+  align-items: center;
+  gap: calc(5 * var(--u));
+  flex-wrap: wrap;
+}
+.tbtn {
+  font-family: var(--pixfont);
+  font-size: calc(11 * var(--u));
+  color: var(--paper);
+  background: rgba(242, 232, 216, 0.08);
+  border: none;
+  padding: calc(5 * var(--u)) calc(8 * var(--u));
+  min-width: calc(26 * var(--u));
+  cursor: pointer;
+  line-height: 1;
+}
+.tbtn:hover { background: rgba(242, 232, 216, 0.2); }
+.tbtn.on { color: var(--amber); box-shadow: inset 0 calc(-2 * var(--u)) 0 var(--amber); }
+.tbtn svg { width: calc(12 * var(--u)); height: calc(12 * var(--u)); display: block; fill: currentColor; }
+.tsep { flex: 1; }
+/* skip-lulls: dim shading over the quiet scrubber stretches, plus an amber
+   "skipping" chip in the tbar while the server is actually fast-forwarding. */
+.lull-span {
+  position: absolute;
+  top: calc(6 * var(--u));
+  height: calc(4 * var(--u));
+  background: rgba(18, 13, 9, 0.6);
+  pointer-events: none;
+}
+.ffwd-chip {
+  display: none;
+  font-family: var(--pixfont);
+  font-size: calc(9 * var(--u));
+  color: var(--amber);
+  padding: 0 calc(6 * var(--u));
+  white-space: nowrap;
+}
+.ffwd-chip.show { display: inline; }
+.speedchips { display: flex; gap: calc(2 * var(--u)); }
+.chip {
+  font-family: var(--pixfont);
+  font-size: calc(9 * var(--u));
+  color: var(--paper-dim);
+  background: rgba(242, 232, 216, 0.06);
+  border: none;
+  padding: calc(4 * var(--u)) calc(5 * var(--u));
+  cursor: pointer;
+  line-height: 1;
+}
+.chip.on { color: var(--stage-lo); background: var(--amber); }
+.tick-clock {
+  font-family: var(--pixfont);
+  font-size: calc(9 * var(--u));
+  color: var(--paper-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* hash-mismatch warning (top center) — honest fidelity flag */
+#mmwarn {
+  position: absolute;
+  top: calc(40 * var(--u));
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  padding: calc(3 * var(--u)) calc(9 * var(--u));
+  background: var(--red);
+  color: var(--paper);
+  font-family: var(--finefont);
+  font-size: calc(8 * var(--u));
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  z-index: 20;
+}
+#mmwarn.on { display: block; }
+
+/* ---------- 6. END-CARD ---------- */
+#endcard {
+  position: absolute;
+  /* Cover the BOARD region only — never the scorebug or transport bands. The
+     transport must stay clickable under the end card so the scrubber can jump
+     back into the match from the score screen (the card cancels server-side
+     end-hold on seek). --topband/--band are the measured band heights that
+     relayout() maintains on :root; in embed mode both are 0 and the card
+     spans the whole iframe as before. */
+  left: 0;
+  right: 0;
+  top: var(--topband, 0px);
+  bottom: var(--band, 0px);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(12 * var(--u));
+  background: radial-gradient(80% 70% at 50% 45%, rgba(16, 11, 7, 0.82), rgba(9, 6, 3, 0.95));
+  z-index: 30;
+  padding: calc(20 * var(--u));
+  text-align: center;
+}
+#endcard.on { display: flex; animation: cardfade 420ms ease-out; }
+@keyframes cardfade { from { opacity: 0; } to { opacity: 1; } }
+#endcard .headline { color: var(--tc, var(--ghost)); }
+#endcard .headline {
+  font-family: var(--pixfont);
+  font-size: calc(30 * var(--u));
+  line-height: 1.05;
+  color: var(--paper);
+  text-shadow: 0 calc(3 * var(--u)) 0 var(--ink);
+  /* headline now carries the (possibly long) policy name — never wrap/overflow */
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#endcard .how {
+  font-family: var(--finefont);
+  font-size: calc(11 * var(--u));
+  letter-spacing: 0.05em;
+  color: var(--paper-dim);
+  max-width: calc(360 * var(--u));
+}
+/* win-condition chip — names HOW the match ended (heart / elimination / time) */
+#endcard .wincond {
+  font-family: var(--pixfont);
+  font-size: calc(10 * var(--u));
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--amber);
+  padding: calc(3 * var(--u)) calc(10 * var(--u));
+  box-shadow: inset 0 0 0 1px rgba(232, 163, 61, 0.5);
+}
+#endcard .how {
+  margin-top: calc(-4 * var(--u));
+}
+/* match-stats scoreboard — one panel per team, winner ringed in amber.
+   Wraps + centers so a 3rd/4th team panel folds to a second row. */
+#endcard .ec-teams {
+  display: flex;
+  gap: calc(22 * var(--u));
+  align-items: stretch;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+#endcard .ec-team {
+  width: calc(215 * var(--u));
+  padding: calc(9 * var(--u)) calc(12 * var(--u));
+  background: rgba(20, 14, 9, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(242, 232, 216, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: calc(5 * var(--u));
+  text-align: left;
+}
+#endcard .ec-team.win {
+  box-shadow: inset 0 0 0 1px rgba(232, 163, 61, 0.65),
+    0 0 calc(14 * var(--u)) rgba(232, 163, 61, 0.18);
+}
+#endcard .ec-tname {
+  font-family: var(--pixfont);
+  font-size: calc(13 * var(--u));
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#endcard .ec-tname { color: var(--tc, var(--paper)); }
+#endcard .ec-lives { display: flex; align-items: baseline; gap: calc(6 * var(--u)); font-family: var(--pixfont); }
+#endcard .fl-num { font-size: calc(22 * var(--u)); color: var(--tc, var(--paper)); }
+/* mixed-team policy subheader: groups a team panel's rows by policy when a
+   team seats more than one (CTF-Doubles: two policies per side) */
+#endcard .ec-pol {
+  font-family: var(--finefont);
+  font-size: calc(7.5 * var(--u));
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+  margin-top: calc(3 * var(--u));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#endcard .fl-cap {
+  font-family: var(--finefont);
+  font-size: calc(8 * var(--u));
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+}
+/* loop countdown — present only while the server holds the end segment */
+#endcard .ec-replay {
+  font-family: var(--finefont);
+  font-size: calc(9 * var(--u));
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+  min-height: calc(12 * var(--u));
+}
+#endcard .ec-replay b { color: var(--paper); font-variant-numeric: tabular-nums; }
+
+/* connection status — fine print, lower-left */
+#status {
+  position: absolute;
+  left: calc(10 * var(--u));
+  bottom: calc(62 * var(--u));
+  font-family: var(--finefont);
+  font-size: calc(8 * var(--u));
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ghost);
+  /* above the locker-room curtain (25): connection state stays readable
+     while the pre-load scene is up */
+  z-index: 26;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms;
+}
+#status.show { opacity: 1; }
+
+/* ============================================================
+   PRE-LOAD CURTAIN — THE BOT LOCKER ROOM
+   The wasm/replay boot can take seconds; instead of a dark board
+   captioned "Warming up", the stage opens on the backstage room
+   UNDER the arena: the four cogs prepping their paintball markers
+   in a lamp-lit locker room. The scene is nanobanana-generated
+   art (art/lockerroom/ — same warm Ink & Print world as the
+   dungeon wall textures): ONE static empty-room plate (bg.jpg)
+   with five alpha-sprite poses per cog (<bot>_<pose>.webp)
+   layered on top and cycled per bot (see .lk-art below).
+   Dismissed by the first ingested frame (dismissLockerRoom).
+   Sits UNDER #status (fine-print
+   connection state stays readable) and #mmwarn; shown in embed
+   mode too — it IS the League Replayer's lit floor while loading.
+   ============================================================ */
+#lockerroom {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  overflow: hidden;
+  font-family: var(--pixfont);
+  background: radial-gradient(120% 95% at 50% 30%, var(--stage-hi) 0%, var(--stage-lo) 55%, #100b07 100%);
+  opacity: 1;
+  transition: opacity 600ms ease;
+}
+#lockerroom.gone { opacity: 0; pointer-events: none; }
+
+/* hanging-lamp light: an amber pool over the room + a low bounce off the
+   floor, with the occasional basement-fixture flicker */
+#lockerroom .lk-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(46% 60% at 50% 28%, rgba(232, 163, 61, 0.15), transparent 70%),
+    radial-gradient(62% 26% at 50% 88%, rgba(232, 163, 61, 0.08), transparent 75%);
+  animation: lk-flicker 9s linear infinite;
+}
+@keyframes lk-flicker {
+  0%, 86%, 90%, 95%, 100% { opacity: 1; }
+  88% { opacity: 0.78; }
+  93% { opacity: 0.9; }
+}
+
+/* The scene: ONE static background plate (bg.jpg — the empty room) with
+   the four cogs layered on top as freestanding alpha sprites, five
+   generated poses each. Every bot runs its own pose carousel (distinct
+   cycle length + phase, crossfaded windows) over its own idle sway, so
+   the composed scene never repeats for minutes — smooth continuous
+   animation over a rock-solid background. A soft radial mask melts the
+   plate's edges into the stage gradient, and the whole scene breathes
+   on a slow zoom. */
+#lockerroom .lk-art {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: lk-breathe 14s ease-in-out infinite alternate;
+}
+@keyframes lk-breathe { from { transform: scale(1); } to { transform: scale(1.03); } }
+#lockerroom .lk-bg {
+  display: block;
+  max-width: 94%;
+  max-height: 96%;
+  -webkit-mask-image: radial-gradient(ellipse 74% 80% at 50% 48%, #000 50%, transparent 99%);
+  mask-image: radial-gradient(ellipse 74% 80% at 50% 48%, #000 50%, transparent 99%);
+}
+/* sprite plane, fitted to the bg image's box by fitLockerSprites() */
+#lockerroom .lk-sprites { position: absolute; }
+/* one wrapper per bot (anchored over its floor spot, carries the idle
+   sway), its pose sprites stacked bottom-center inside */
+#lockerroom .lk-boto { position: absolute; transform-origin: 50% 100%; }
+#lockerroom .lk-boto img {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  opacity: 0;
+  animation: lk-pose var(--cyc, 4s) linear infinite;
+}
+/* each pose owns a crossfaded 1/5 window of its bot's cycle (delay-shifted) */
+@keyframes lk-pose {
+  0% { opacity: 0; }
+  4% { opacity: 1; }
+  20% { opacity: 1; }
+  24% { opacity: 0; }
+  100% { opacity: 0; }
+}
+/* idle sway per seat: subtle, distinct tempi so the row never metronomes */
+@keyframes lk-sway { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-1.5px) rotate(0.6deg); } }
+#lockerroom .lk-boto:nth-child(1) { animation: lk-sway 3.4s ease-in-out infinite; }
+#lockerroom .lk-boto:nth-child(2) { animation: lk-sway 2.9s ease-in-out -1.2s infinite; }
+#lockerroom .lk-boto:nth-child(3) { animation: lk-sway 3.8s ease-in-out -0.6s infinite; }
+#lockerroom .lk-boto:nth-child(4) { animation: lk-sway 3.1s ease-in-out -2s infinite; }
+
+/* rotating prep-talk line + amber scan bar + fine print, over the floor */
+#lockerroom .lk-cap {
+  position: absolute;
+  bottom: 13%;
+  left: 0; right: 0;
+  text-align: center;
+  font-family: var(--finefont);
+  font-size: calc(11 * var(--u));
+  color: var(--paper-dim);
+  text-shadow: 0 1px 0 rgba(10, 7, 4, 0.8), 0 0 calc(8 * var(--u)) rgba(10, 7, 4, 0.9);
+  transition: opacity 150ms;
+}
+#lockerroom .lk-cap.swap { opacity: 0; }
+#lockerroom .lk-bar {
+  position: absolute;
+  bottom: 10.2%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(150 * var(--u));
+  height: calc(3 * var(--u));
+  background: rgba(242, 232, 216, 0.12);
+  border-radius: calc(2 * var(--u));
+  overflow: hidden;
+}
+#lockerroom .lk-bar i {
+  position: absolute;
+  top: 0; bottom: 0;
+  left: -34%;
+  width: 34%;
+  border-radius: calc(2 * var(--u));
+  background: linear-gradient(90deg, transparent, var(--amber), transparent);
+  animation: lk-scan 1.6s ease-in-out infinite alternate;
+}
+@keyframes lk-scan { from { left: -34%; } to { left: 100%; } }
+#lockerroom .lk-sub {
+  position: absolute;
+  bottom: 6.4%;
+  left: 0; right: 0;
+  text-align: center;
+  font-family: var(--finefont);
+  font-size: calc(7.5 * var(--u));
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ghost);
+  text-shadow: 0 1px 0 rgba(10, 7, 4, 0.9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #lockerroom * { animation: none !important; }
+  /* with the carousels stopped, hold each bot's rest pose over the plate */
+  #lockerroom .lk-boto img:first-child { opacity: 1; }
+}
+
+/* ============================================================
+   The replay is ONE fixed-aspect composition (relayout() sizes #stage to the
+   board's 1235:659 aspect inside the embed box), so there is no portrait/reflow
+   case: at every container shape the board and its overlays scale together as a
+   single unit and stay pinned. The only responsive lever is chrome DENSITY —
+   `.tiny` eases the reserves so the 640×360 floor stays legible.
+   ============================================================ */
+/* very small floor (≤620px stage): tighten reserves */
+#stage.tiny #killfeed { min-height: calc(3 * 20 * var(--u)); width: calc(190 * var(--u)); }
+
+@media (prefers-reduced-motion: reduce) {
+  #grain, .clock.amb { animation: none; }
+  .plate.leader .lives-num { animation: none; }
+  .banner-chip, .feed-row { animation-duration: 1ms; }
+}
+
+/* ============================================================
+   EMBED MODE — inside the League Replayer shell (?embed=1)
+   The shell owns the walls + team headers + KDA + standings + transport, drawn
+   from the postMessage frame stream. Here we show the board (the lit pit floor)
+   PLUS the designed broadcast feedback layer that belongs over the play area —
+   the kill feed and the flag-event banner lane (lower-third / center wipes).
+   We hide only the chrome the shell re-draws (scorebug/transport) and the
+   ambient light-pool/grain/status, and let the board fill the embed box.
+   ============================================================ */
+body[data-embed] #scorebug,
+body[data-embed] #transport,
+body[data-embed] #lightpool,
+body[data-embed] #grain,
+body[data-embed] #status { display: none !important; }
+body[data-embed] #board { top: 0; height: 100%; }
+
+/* ============================================================
+   GRIDLOCK additions to the inherited paintbot chrome. Everything above
+   this block is the starter's CSS (via raid), kept verbatim; everything
+   below is the four fleet counters over the depots, the plan chips, the
+   jam gauge, the gridlock flash, the scrubber beat kinds, the scorebug
+   plate tweaks and the 360 px rules.
+   ============================================================ */
+
+/* Fleet colours over the inherited team slots: the page sets --tc inline
+   per plate / chip from meta.colours, so every var(--tc, …) rule above
+   (plate names, feed rows, banner accents, beat markers) reads the
+   fleet's own hue without a per-fleet selector. */
+.plate .fleet-chip {
+  width: calc(14 * var(--u));
+  height: calc(14 * var(--u));
+  flex: none;
+  background: var(--tc, var(--ghost));
+  box-shadow: 0 calc(2 * var(--u)) 0 var(--ink);
+}
 /* Names never collapse to "…" — playbook gotcha, checked at 360 px. */
-.plate .team-name,.plate-name{flex:1 1 auto;min-width:3.2em;overflow:hidden;
-  text-overflow:ellipsis;white-space:nowrap}
-.plate .team-alias{flex:0 0 auto;color:var(--dim);
-  font-size:calc(11*var(--u));white-space:nowrap}
-.plate .team-score{flex:0 0 auto;font-variant-numeric:tabular-nums;
-  font-weight:700;min-width:2.2em;text-align:right}
+.plate .team-name,.plate-name{flex:1 1 auto;min-width:3.2em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plate .team-alias {
+  font-family: var(--finefont);
+  font-size: calc(8 * var(--u));
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tc, var(--paper-dim));
+  margin-top: calc(3 * var(--u));
+  white-space: nowrap;
+}
+.plate.side-r .team-alias { text-align: right; }
+.plate.leader .team-name { text-shadow: 0 calc(2 * var(--u)) 0 var(--ink), 0 0 calc(10 * var(--u)) var(--tc, var(--amber)); }
+.plate:not(.leader) .lives-num { color: var(--paper-dim); }
 
-/* --- clock ------------------------------------------------------------ */
-#clock{position:absolute;top:calc(8*var(--u));left:50%;
-  transform:translateX(-50%);text-align:center;background:var(--panel);
-  border:1px solid var(--edge);border-radius:calc(5*var(--u));
-  padding:calc(3*var(--u)) calc(12*var(--u))}
-#clock-time{font-size:calc(20*var(--u));font-weight:700;
-  font-variant-numeric:tabular-nums}
-#clock-caption{font-size:calc(10*var(--u));color:var(--dim);
-  letter-spacing:.08em;text-transform:uppercase}
-#ffwd-mini{font-size:calc(10*var(--u));color:#d9a441}
+/* ---- fleet counters: four corners of the city square, over the depots.
+   relayout() sets --sq to the side of the board's letterboxed square, so
+   the counters stay pinned to the depots at every embed size. ---- */
+#fleetbug {
+  position: absolute;
+  top: calc(var(--topband, 0px) + (100% - var(--topband, 0px) - var(--band, 0px) - var(--sq, 0px)) / 2);
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--sq, 0px);
+  height: var(--sq, 0px);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  padding: 9%;
+  pointer-events: none;
+  z-index: 8;
+}
+.fleet-counter {
+  display: flex;
+  align-items: center;
+  gap: calc(4 * var(--u));
+  align-self: start;
+  justify-self: start;
+  padding: calc(3 * var(--u)) calc(7 * var(--u));
+  background: var(--ink-soft);
+  box-shadow: inset calc(3 * var(--u)) 0 0 var(--tc, var(--ghost));
+  font-family: var(--pixfont);
+  font-size: calc(10 * var(--u));
+  line-height: 1;
+  color: var(--paper);
+  transition: transform 160ms cubic-bezier(.2,1.4,.4,1);
+}
+.fleet-counter.corner-nw { grid-area: 1 / 1; }
+.fleet-counter.corner-ne { grid-area: 1 / 2; justify-self: end; }
+.fleet-counter.corner-sw { grid-area: 2 / 1; align-self: end; }
+.fleet-counter.corner-se { grid-area: 2 / 2; align-self: end; justify-self: end; }
+.fleet-counter.bump { transform: scale(1.14); }
+.fleet-dot {
+  width: calc(8 * var(--u));
+  height: calc(8 * var(--u));
+  border-radius: 50%;
+  background: var(--tc, var(--ghost));
+  flex: none;
+}
+.fleet-alias {
+  font-family: var(--finefont);
+  font-size: calc(8 * var(--u));
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+}
+.fleet-count {
+  font-size: calc(13 * var(--u));
+  font-variant-numeric: tabular-nums;
+  min-width: 2.2em;
+  text-align: right;
+}
+.fleet-bar {
+  width: calc(26 * var(--u));
+  height: calc(3 * var(--u));
+  background: rgba(242, 232, 216, 0.14);
+  overflow: hidden;
+}
+.fleet-bar-fill { height: 100%; width: 0; background: var(--tc, var(--paper)); transition: width 200ms linear; }
 
-/* --- fleet counters, in the four corners over their depots ------------ */
-/* The counters sit on the BOARD's four corners, over their own depots —
-   diegetic, and out of the scorebug's way at every width. */
-#fleetbug{position:absolute;top:50%;left:50%;
-  transform:translate(-50%,-50%);width:min(100vw,100vh);
-  height:min(100vw,100vh);display:grid;
-  padding:calc(40*var(--u)) calc(40*var(--u)) calc(64*var(--u));
-  grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;
-  pointer-events:none}
-.fleet-counter{display:flex;align-items:center;gap:calc(5*var(--u));
-  background:var(--panel);border:1px solid var(--edge);
-  border-radius:calc(5*var(--u));padding:calc(2*var(--u)) calc(7*var(--u));
-  align-self:start;justify-self:start;font-size:calc(12*var(--u))}
-.corner-1{justify-self:end}
-.corner-2{align-self:end}
-.corner-3{align-self:end;justify-self:end}
-.fleet-dot{width:calc(8*var(--u));height:calc(8*var(--u));border-radius:50%}
-.fleet-alias{color:var(--dim);font-size:calc(11*var(--u))}
-.fleet-count{font-weight:700;font-variant-numeric:tabular-nums;
-  min-width:2.2em;text-align:right}
-.fleet-bar{width:calc(38*var(--u));height:calc(4*var(--u));
-  background:rgba(255,255,255,.12);border-radius:2px;overflow:hidden}
-.fleet-bar-fill{height:100%;width:0}
+/* ---- plan chips: the LLM visibly playing. One chip per fleet, below the
+   scorebug on the left; a dispatcher's reprice / dispatch changes here a
+   turn BEFORE the roads change. ---- */
+#planbar {
+  position: absolute;
+  left: calc(12 * var(--u));
+  top: calc(var(--topband, 0px) + 10 * var(--u));
+  display: flex;
+  flex-direction: column;
+  gap: calc(4 * var(--u));
+  pointer-events: none;
+  z-index: 8;
+}
+.planchip {
+  display: flex;
+  align-items: center;
+  gap: calc(5 * var(--u));
+  padding: calc(3 * var(--u)) calc(7 * var(--u));
+  background: var(--ink-soft);
+  box-shadow: inset calc(3 * var(--u)) 0 0 var(--tc, var(--ghost));
+  font-family: var(--pixfont);
+  font-size: calc(10 * var(--u));
+  line-height: 1;
+  color: var(--paper);
+  white-space: nowrap;
+}
+.planchip .plan-alias {
+  font-family: var(--finefont);
+  font-size: calc(7.5 * var(--u));
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tc, var(--paper-dim));
+  min-width: 5.2em;
+}
+.planchip .plan-text { font-variant-numeric: tabular-nums; }
 
-/* --- plan chips: the LLM visibly playing ------------------------------ */
-#planbar{position:absolute;left:calc(10*var(--u));bottom:calc(96*var(--u));
-  display:flex;gap:calc(5*var(--u));flex-wrap:wrap}
-.plan-chip{display:flex;align-items:center;gap:calc(4*var(--u));
-  background:var(--panel);border:1px solid var(--edge);
-  border-radius:calc(4*var(--u));padding:calc(2*var(--u)) calc(6*var(--u));
-  font-size:calc(11*var(--u));font-variant-numeric:tabular-nums}
-.plan-dot{width:calc(7*var(--u));height:calc(7*var(--u));border-radius:50%}
+/* ---- jam gauge: the city jam index 0–100 with the 3×3 district heat
+   digits beside it. Green flowing, amber > 45, red > 70. ---- */
+#jamgauge {
+  position: absolute;
+  right: calc(12 * var(--u));
+  top: calc(var(--topband, 0px) + 10 * var(--u));
+  display: flex;
+  align-items: center;
+  gap: calc(7 * var(--u));
+  padding: calc(4 * var(--u)) calc(8 * var(--u));
+  background: var(--ink-soft);
+  font-family: var(--pixfont);
+  color: var(--paper);
+  pointer-events: none;
+  z-index: 8;
+}
+.jam-label {
+  font-family: var(--finefont);
+  font-size: calc(7.5 * var(--u));
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+}
+.jam-track {
+  width: calc(90 * var(--u));
+  height: calc(6 * var(--u));
+  background: rgba(242, 232, 216, 0.14);
+  overflow: hidden;
+}
+.jam-fill { height: 100%; width: 2%; background: var(--green); transition: width 200ms linear, background 200ms; }
+.jam-fill.warm { background: var(--amber); }
+.jam-fill.hot { background: var(--red); }
+.jam-value {
+  font-size: calc(14 * var(--u));
+  font-variant-numeric: tabular-nums;
+  min-width: 2.2em;
+  text-align: right;
+}
+.jam-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: calc(1 * var(--u));
+}
+.jam-cell {
+  width: calc(11 * var(--u));
+  height: calc(11 * var(--u));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--finefont);
+  font-size: calc(8 * var(--u));
+  color: var(--paper-dim);
+  background: rgba(242, 232, 216, 0.08);
+}
+.jam-cell.heat-5, .jam-cell.heat-6 { color: var(--paper); }
+.jam-cell.heat-7, .jam-cell.heat-8 { background: var(--amber); color: var(--stage-lo); }
+.jam-cell.heat-9 { background: var(--red); color: var(--paper); }
 
-/* --- jam gauge -------------------------------------------------------- */
-#jamgauge{position:absolute;right:calc(10*var(--u));
-  bottom:calc(96*var(--u));display:flex;align-items:center;
-  gap:calc(6*var(--u));background:var(--panel);border:1px solid var(--edge);
-  border-radius:calc(5*var(--u));padding:calc(3*var(--u)) calc(8*var(--u));
-  font-size:calc(11*var(--u))}
-.jam-label{color:var(--dim);letter-spacing:.1em}
-.jam-track{width:calc(90*var(--u));height:calc(7*var(--u));
-  background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden}
-.jam-fill{height:100%;width:2%;background:#4d7c4f}
-.jam-value{font-weight:700;font-variant-numeric:tabular-nums;min-width:2.2em;
-  text-align:right}
-.jam-grid{display:grid;grid-template-columns:repeat(3,1fr);
-  gap:calc(1*var(--u))}
-.jam-cell{width:calc(11*var(--u));height:calc(11*var(--u));
-  display:flex;align-items:center;justify-content:center;
-  font-size:calc(9*var(--u));border-radius:2px;background:#2e3440}
-.heat-7,.heat-8{background:#d9a441;color:#20242a}
-.heat-9{background:#c2452d}
 /* The gridlock alarm. The hatched district rectangle is drawn on the board
    canvas (broadcast_core.drawFlash) because only the canvas has the pan/zoom
-   transform; this element is the full-frame red pulse that goes with it, and
-   it is what the chrome drives off the same `gridlock` event. */
-#jamflash{position:absolute;inset:0;pointer-events:none;opacity:0;
-  box-shadow:inset 0 0 calc(46*var(--u)) rgba(194,69,45,.85);
-  transition:opacity .2s ease}
+   transform; this element is the full-frame hatched red pulse that goes
+   with it, driven by the chrome off the same `gridlock` event. */
+#jamflash {
+  position: absolute;
+  inset: var(--topband, 0px) 0 var(--band, 0px) 0;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 9;
+  box-shadow: inset 0 0 calc(46 * var(--u)) rgba(194, 69, 45, 0.85);
+  background: repeating-linear-gradient(45deg, rgba(194, 69, 45, 0.16) 0 calc(8 * var(--u)), transparent calc(8 * var(--u)) calc(16 * var(--u)));
+  transition: opacity 0.2s ease;
+}
 #jamflash.show{opacity:1}
 
-/* --- banners and feed ------------------------------------------------- */
-#bannerlane{position:absolute;top:calc(74*var(--u));left:50%;
-  transform:translateX(-50%);background:rgba(160,40,28,.92);
-  border-radius:calc(4*var(--u));padding:calc(3*var(--u)) calc(12*var(--u));
-  font-size:clamp(11px,3.4vw,17px);font-weight:700;letter-spacing:.06em;
-  white-space:nowrap;opacity:0;transition:opacity .18s ease}
-#bannerlane.show{opacity:1}
-#killfeed{position:absolute;right:calc(10*var(--u));top:calc(74*var(--u));
-  display:flex;flex-direction:column;gap:calc(2*var(--u));
-  align-items:flex-end;max-width:min(46vw,calc(300*var(--u)))}
-.feed-line{background:var(--panel);border:1px solid var(--edge);
-  border-radius:calc(4*var(--u));padding:calc(2*var(--u)) calc(7*var(--u));
-  font-size:calc(11*var(--u));color:var(--ink);white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis;max-width:100%}
-#mmwarn{position:absolute;bottom:calc(78*var(--u));left:50%;
-  transform:translateX(-50%);color:#e0703c;font-size:calc(11*var(--u));
-  display:none}
-html[data-replay-mismatch-tick] #mmwarn{display:block}
+/* banners: a gridlock reads in the alarm red, a depot meter in the holding
+   fleet's colour (the .accent bar above). */
+.banner-chip.gridlock { border-bottom-color: var(--red); font-size: calc(15 * var(--u)); }
 
-/* --- transport -------------------------------------------------------- */
-#transport{position:absolute;left:0;right:0;bottom:0;
-  background:linear-gradient(to top,rgba(8,10,13,.94),rgba(8,10,13,0));
-  padding:calc(6*var(--u)) calc(10*var(--u)) calc(8*var(--u));
-  display:flex;flex-direction:column;gap:calc(5*var(--u))}
-#scrub{position:relative;height:calc(12*var(--u));
-  background:rgba(255,255,255,.1);border-radius:calc(6*var(--u));
-  cursor:pointer;overflow:hidden}
-#scrub-fill{position:absolute;left:0;top:0;bottom:0;width:0;
-  background:linear-gradient(90deg,#3f6f96,#79b7e0)}
-#momentum,#lulls,#scrub-win{position:absolute;inset:0;pointer-events:none}
-#scrub-head{position:absolute;top:0;bottom:0;width:calc(3*var(--u));
-  background:#fff;border-radius:2px}
-.tbar{display:flex;align-items:center;gap:calc(5*var(--u));flex-wrap:wrap}
-.tbtn{background:var(--panel);border:1px solid var(--edge);color:var(--ink);
-  border-radius:calc(4*var(--u));padding:calc(3*var(--u)) calc(8*var(--u));
-  font-size:calc(12*var(--u));cursor:pointer}
-.tbtn:hover{border-color:rgba(215,228,255,.5)}
-.chiplabel{font-size:calc(10*var(--u));color:var(--dim);
-  letter-spacing:.08em;text-transform:uppercase}
-#speedchips{display:flex;gap:calc(3*var(--u))}
-.speedchip{background:var(--panel);border:1px solid var(--edge);
-  color:var(--dim);border-radius:calc(4*var(--u));
-  padding:calc(2*var(--u)) calc(6*var(--u));font-size:calc(11*var(--u));
-  cursor:pointer}
-.speedchip.on{color:var(--ink);border-color:rgba(215,228,255,.6)}
-.tbtn.on{color:var(--ink);border-color:rgba(215,228,255,.6)}
-/* Inherited controls gridlock does not drive: the lull-span machinery
-   (#btn-skip, #ffwd-chip, #ffwd-mini) and the spoiler curtain
-   (#btn-spoilers, #win-chip). They keep their ids — the chrome is the
-   starter's, and readout 5 is a v0.2 feature — but a VISIBLE control that
-   does nothing is a legibility defect, so they are not shown. */
-#btn-skip,#btn-spoilers{display:none}
-#tick-clock,#ffwd-chip,#win-chip{font-size:calc(10*var(--u));color:var(--dim);
-  font-variant-numeric:tabular-nums}
+/* gridlock beats on the scrubber: a gridlock is the tall red tick, a jam a
+   short amber one. Markers are buttons (they seek on click), so reset the
+   button chrome and give the 2 px tick a fingertip-sized hit box plus a
+   head so it reads at 360 px. */
+.beat-marker { margin: 0; padding: 0; border: 0; cursor: pointer; pointer-events: auto; font: inherit; }
+.beat-marker::before { content: ''; position: absolute; inset: calc(-3 * var(--u)) calc(-5 * var(--u)); }
+.beat-marker::after {
+  content: ''; position: absolute; left: 50%; top: 0;
+  width: calc(6 * var(--u)); height: calc(6 * var(--u));
+  transform: translate(-50%, calc(-3 * var(--u)));
+  border-radius: 50%; background: inherit;
+}
+.beat-marker:hover, .beat-marker:focus-visible { filter: brightness(1.4); outline: none; z-index: 5; }
+.beat-marker.gridlock { background: var(--red); width: calc(3 * var(--u)); height: calc(12 * var(--u)); }
+.beat-marker.jam { background: var(--amber); height: calc(6 * var(--u)); opacity: 0.8; }
 
-/* --- endcard and curtain ---------------------------------------------- */
-#endcard{position:absolute;inset:0;display:none;flex-direction:column;
-  align-items:center;justify-content:center;gap:calc(8*var(--u));
-  background:rgba(8,10,13,.9);padding:calc(16*var(--u));text-align:center}
-#endcard.show{display:flex}
-#ec-headline{font-size:calc(26*var(--u));font-weight:800}
-#ec-wincond,#ec-how{font-size:calc(12*var(--u));color:var(--dim);
-  max-width:calc(460*var(--u))}
-#ec-teams{display:flex;flex-direction:column;gap:calc(3*var(--u));
-  width:min(92vw,calc(520*var(--u)))}
-.ec-row{display:flex;align-items:center;gap:calc(6*var(--u));
-  background:var(--panel);border:1px solid var(--edge);
-  border-radius:calc(4*var(--u));padding:calc(3*var(--u)) calc(8*var(--u));
-  font-size:calc(11*var(--u))}
-.ec-name{flex:1 1 auto;min-width:3.2em;overflow:hidden;
-  text-overflow:ellipsis;white-space:nowrap;text-align:left}
-.ec-num{flex:0 0 auto;color:var(--dim);font-variant-numeric:tabular-nums}
-#lockerroom{position:absolute;inset:0;display:none}
-#status{position:absolute;bottom:calc(112*var(--u));left:50%;
-  transform:translateX(-50%);color:#ff8a6a;font-size:calc(12*var(--u));
-  display:none}
-#status.show{display:block}
-#loading{position:absolute;inset:0;display:flex;align-items:center;
-  justify-content:center;background:#0d0f13;color:var(--dim);
-  letter-spacing:.14em;font-size:14px;z-index:20}
+/* The shell flags a keyframe digest mismatch on <html
+   data-replay-mismatch-tick>; the starter's warning pill reads it. */
+html[data-replay-mismatch-tick] #mmwarn { display: block; }
 
-/* --- 360 px: the embedded featured-match width ------------------------ */
-.tiny #scorebug{top:calc(4*var(--u))}
-.tiny .plate{font-size:calc(11*var(--u));padding:calc(2*var(--u))
-  calc(5*var(--u))}
-@media (max-width: 640px){
+/* Gridlock's beats ride the starter's beat markers (chrome_common), so
+   raid's per-event lane stays empty here; keep it out of the hit test. */
+#ev-lane:empty { display: none; }
+/* the burn chips carry a speed multiplier — tabular so 16× never jitters */
+#ffwd-chip, #ffwd-mini { font-variant-numeric: tabular-nums; }
+
+/* speed label ahead of the chips */
+.chiplabel {
+  font-family: var(--finefont);
+  font-size: calc(7.5 * var(--u));
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+  padding-right: calc(4 * var(--u));
+}
+
+/* endcard: four fleet panels in a 2×2 wrap, the winner ringed in amber */
+#endcard .ec-teams { gap: calc(10 * var(--u)); }
+#endcard .ec-team { width: calc(150 * var(--u)); padding: calc(7 * var(--u)) calc(9 * var(--u)); gap: calc(3 * var(--u)); }
+#endcard .ec-team .ec-pol { text-transform: none; letter-spacing: 0.04em; font-size: calc(8 * var(--u)); white-space: normal; margin-top: 0; }
+#endcard .ec-team .ec-num { font-family: var(--pixfont); font-size: calc(18 * var(--u)); line-height: 1; color: var(--tc, var(--paper)); }
+#endcard .headline { font-size: calc(24 * var(--u)); }
+
+/* The shell's boot / failure banner (static_replay.js hides it on the first
+   drawn frame and re-shows it, with a Retry button, on failure). It sits
+   UNDER the locker-room curtain; the page drops the curtain on failure. */
+#loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(8 * var(--u));
+  background: #120d09;
+  color: var(--paper-dim);
+  font-family: var(--finefont);
+  font-size: calc(11 * var(--u));
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  z-index: 24;
+}
+#loading button {
+  font: inherit;
+  color: var(--paper);
+  background: rgba(242, 232, 216, 0.12);
+  border: 0;
+  padding: calc(4 * var(--u)) calc(10 * var(--u));
+  cursor: pointer;
+}
+
+/* ---- 360 px: the embedded featured-match width. The four counters, the
+   jam bar and the scorebug numerals are what must read from across the
+   room, so they are what the media query protects. ---- */
+@media (max-width: 640px) {
   #planbar{display:none}
   .chiplabel{display:none}
-  #fleetbug .fleet-alias,#fleetbug .fleet-bar{display:none}
-  .fleet-counter{padding:calc(1*var(--u)) calc(4*var(--u))}
-  .jam-grid{display:none}
-  .jam-track{width:calc(56*var(--u))}
-  .plate .team-alias{display:none}
-  #killfeed{max-width:92vw;left:calc(6*var(--u));right:calc(6*var(--u));
-    align-items:flex-start;top:auto;bottom:calc(108*var(--u))}
-  #killfeed .feed-line:nth-child(n+3){display:none}
-  #bannerlane{font-size:clamp(11px,3.4vw,17px);max-width:94vw;
-    overflow:hidden;text-overflow:ellipsis}
+  .tbtn .label { display: none !important; }
+  #fleetbug .fleet-alias, #fleetbug .fleet-bar { display: none; }
+  .fleet-counter { padding: calc(2 * var(--u)) calc(4 * var(--u)); gap: calc(3 * var(--u)); }
+  .jam-grid { display: none; }
+  .jam-track { width: calc(56 * var(--u)); }
+  .plate .team-alias { display: none; }
+  .plate .lives-label { display: none; }
+  #killfeed { width: calc(170 * var(--u)); min-height: calc(2 * 22 * var(--u)); }
+  #killfeed .feed-row:nth-child(n+3) { display: none; }
+  #bannerlane .banner-chip { max-width: 94%; overflow: hidden; text-overflow: ellipsis; }
+  #ec-headline { font-size: clamp(13px, 4.2vw, 26px); }
 }
 </style>
-<!-- WIRE_CONSTANTS -->
-<!-- CHROME_COMMON -->
 </head>
 <body>
 <div id="viewport">
-  <div id="stage">
-    <canvas id="board" width="1024" height="1024"></canvas>
-    <div id="lightpool"></div>
-    <div id="grain"></div>
-    <div id="chrome">
-      <div id="scorebug"><div id="plates-l"></div><div id="plates-r"></div></div>
-      <div id="clock">
-        <div id="clock-time">00:00</div>
-        <div id="clock-caption">turn 0/20</div>
-        <div id="ffwd-mini"></div>
-      </div>
-      <div id="fleetbug"></div>
-      <div id="planbar"></div>
-      <div id="jamgauge"></div>
-      <div id="jamflash"></div>
-      <div id="bannerlane"></div>
-      <div id="killfeed" class="feed"></div>
-      <div id="mmwarn">REPLAY DIGEST MISMATCH — SHOWING RECORDED INPUTS</div>
-      <div id="transport">
-        <div id="scrub">
-          <div id="scrub-fill"></div>
-          <div id="momentum"></div>
-          <div id="lulls"></div>
-          <div id="scrub-win"></div>
-          <div id="scrub-head"></div>
-        </div>
-        <div class="tbar">
-          <button class="tbtn" id="btn-restart" type="button">⏮</button>
-          <button class="tbtn" id="btn-back" type="button">◀</button>
-          <button class="tbtn" id="btn-play" type="button">❚❚</button>
-          <button class="tbtn" id="btn-fwd" type="button">▶▶</button>
-          <button class="tbtn" id="btn-end" type="button">⏭</button>
-          <button class="tbtn" id="btn-loop" type="button">LOOP</button>
-          <button class="tbtn" id="btn-skip" type="button">SKIP LULLS</button>
-          <button class="tbtn" id="btn-spoilers" type="button">SPOILERS</button>
-          <span class="chiplabel">SPEED</span>
-          <span id="speedchips"></span>
-          <span id="ffwd-chip"></span>
-          <span id="win-chip"></span>
-          <span id="tick-clock">t 0</span>
+<div id="stage">
+  <canvas id="board"></canvas>
+  <div id="lightpool"></div>
+  <div id="grain" class="amb"></div>
+
+  <!-- Pre-load curtain, inherited from the starter with gridlock's own
+       caption: the art fades out on the first ingested frame. role=status
+       so a screen reader hears one "Loading replay". -->
+  <div id="lockerroom" role="status" aria-label="Loading replay">
+    <div class="lk-art" id="lk-art" aria-hidden="true">
+      <img class="lk-bg" id="lk-bg" alt="">
+      <div class="lk-sprites" id="lk-sprites"></div>
+    </div>
+    <div class="lk-glow" aria-hidden="true"></div>
+    <div class="lk-cap" id="lk-cap" aria-hidden="true">Warming up the signals&hellip;</div>
+    <div class="lk-bar" aria-hidden="true"><i></i></div>
+    <div class="lk-sub">Four fleets &middot; Loading replay</div>
+  </div>
+
+  <div id="chrome">
+    <!-- Four plates, two per side, on one row: the inherited 3-4 team
+         scorebug path. Real player names live HERE and only here (plus the
+         endcard and the feed); the board labels depots Carbon…Silicon. -->
+    <div id="scorebug">
+      <div class="plates" id="plates-l"></div>
+
+      <div class="clock-col">
+        <div class="clock amb" id="clock">
+          <div class="time" id="clock-time">00:00</div>
+          <span class="ffwd-mini" id="ffwd-mini">&#9656;&#9656;</span>
+          <div class="caption" id="clock-caption">turn 0/20</div>
         </div>
       </div>
-      <div id="endcard">
-        <div id="ec-headline"></div>
-        <div id="ec-wincond"></div>
-        <div id="ec-teams"></div>
-        <div id="ec-how"></div>
-        <div id="ec-replay"></div>
+
+      <div class="plates" id="plates-r"></div>
+    </div>
+
+    <!-- Fleet counters: one per depot corner, bumped on every deliver. -->
+    <div id="fleetbug"></div>
+    <!-- Each fleet's current reprice / dispatch plan. -->
+    <div id="planbar"></div>
+    <!-- City jam index + the 3x3 district heat digits. -->
+    <div id="jamgauge"></div>
+    <!-- Full-frame hatched pulse on a gridlock event. -->
+    <div id="jamflash"></div>
+
+    <div id="mmwarn">Replay hash mismatch &mdash; showing recorded inputs</div>
+    <div id="bannerlane"></div>
+    <div id="killfeed"></div>
+
+    <div id="transport">
+      <div class="tbar">
+        <button class="tbtn" id="btn-restart" title="Restart (,)">&#10226;</button>
+        <button class="tbtn" id="btn-back" title="Back one tick (b)">&#9666;|</button>
+        <button class="tbtn" id="btn-play" title="Play / pause (space)">&#9654;</button>
+        <button class="tbtn" id="btn-fwd" title="Skip +5s (.)">+5s</button>
+        <button class="tbtn" id="btn-end" title="Jump to end (e)">|&#9656;</button>
+        <button class="tbtn" id="btn-loop" title="Loop (r)">&#8635;</button>
+        <button class="tbtn" id="btn-skip" title="Auto-skip lulls (f)">&#9656;&#9656;</button>
+        <button class="tbtn" id="btn-spoilers" title="Spoilers: gridlocks / jams / winner ahead of the playhead (o)">spoilers</button>
+        <span class="ffwd-chip" id="ffwd-chip">&#9656;&#9656; CITY FLOWING &mdash; 16&times;</span>
+        <span class="win-chip" id="win-chip"></span>
+        <span class="tick-clock" id="tick-clock">0 / 0</span>
+        <span class="tsep"></span>
+        <span class="chiplabel">Speed</span>
+        <div class="speedchips" id="speedchips"></div>
       </div>
-      <div id="lockerroom">
-        <div id="lk-bg"></div><div id="lk-art"></div>
-        <div id="lk-sprites"></div><div id="lk-cap"></div>
+      <div class="scrub" id="scrub">
+        <svg class="momentum" id="momentum" viewBox="0 0 1000 100"
+             preserveAspectRatio="none" aria-hidden="true"></svg>
+        <span class="momentum-label">PARCELS DELIVERED &middot; JAM</span>
+        <div class="scrub-track"></div>
+        <div class="scrub-fill" id="scrub-fill"></div>
+        <div id="lulls"></div>
+        <div class="scrub-win" id="scrub-win"></div>
+        <div class="scrub-head" id="scrub-head"></div>
+        <div class="ev-lane" id="ev-lane" role="group" aria-label="City events"></div>
+        <div class="ev-tip" id="ev-tip"></div>
       </div>
-      <div id="status"></div>
+    </div>
+
+    <div id="endcard">
+      <div class="headline" id="ec-headline">&mdash;</div>
+      <div class="wincond" id="ec-wincond"></div>
+      <div class="how" id="ec-how"></div>
+      <div class="ec-teams" id="ec-teams"></div>
+      <div class="ec-replay" id="ec-replay"></div>
     </div>
   </div>
+
+  <div id="status">connecting</div>
+  <div id="loading">Loading replay&hellip;</div>
 </div>
-<div id="loading">LOADING REPLAY…</div>
+</div>
+
+<!-- WIRE_CONSTANTS -->
+<!-- CHROME_COMMON -->
 <!-- BROADCAST_CORE -->
+
+<script>
+(function () {
+  'use strict';
+
+  // The three splice markers above are replaced with <script src> tags by
+  // Dockerfile.replay-viewer when the static bundle is built (and by the
+  // native server's splicePage). A raw /client/replay open off the game
+  // server has no splice, so pull the same files in by src and re-enter
+  // once they are up.
+  function need(name, global) {
+    return typeof window[global] === 'undefined' ? name : null;
+  }
+  var missing = [
+    need('chrome_common.js', 'ChromeCommon'),
+    need('static_replay.js', 'GridlockStaticReplay')
+  ].filter(Boolean);
+  if (missing.length) {
+    var base = location.pathname.indexOf('/client/') === 0 ? '/client/' : './';
+    var pending = missing.length;
+    missing.forEach(function (file) {
+      var tag = document.createElement('script');
+      tag.src = base + file;
+      tag.onload = function () { if (--pending === 0) boot(); };
+      tag.onerror = function () { pending = -1; };
+      document.head.appendChild(tag);
+    });
+    return;
+  }
+  boot();
+
+  function boot() {
+    var $ = function (id) { return document.getElementById(id); };
+    var TEAMS = ['red', 'blue', 'green', 'yellow'];   // fleet 0..3 -> chrome slot
+    var DISTRICTS = ['NW', 'N', 'NE', 'W', 'CENTRE', 'E', 'SW', 'S', 'SE'];
+    var LULL_TICKS = 240;
+    var BURN_SPEED = 16;
+    var HELD_BANNER = 3;      // a meter event with this many vans held banners
+
+    // chrome_common reads its engine constants (speeds, fps) off
+    // window.CTF_WIRE; gridlock's splice is window.GRIDLOCK_WIRE with the
+    // same shape, so alias it before the chrome is instantiated.
+    window.CTF_WIRE = window.CTF_WIRE || window.GRIDLOCK_WIRE || {};
+
+    var meta = null;
+    var core = null;
+    var tickCount = 1;
+    var fps = 24;
+    var turnTicks = 240;
+    var lastTick = 0;
+    var lastFrame = null;
+    var ended = false;
+    var feedLines = [];
+    var lullSpans = [];
+    var failedShown = false;
+    var state = {
+      ph: 'playing', t: 0, st: 0, mx: 1, mt: 1,
+      pl: true, lp: false, sk: false, ff: false, sp: 4, en: false,
+      teams: {}, pov: -1
+    };
+
+    // ---- the shared chrome -------------------------------------------------
+    var C = window.ChromeCommon({
+      send: function (cmd) { command(cmd); },
+      sendPov: function () { /* gridlock has no per-van POV: fleets are the unit */ },
+      getState: function () { return state; },
+      seek: function (tick) { if (core) core.seek(tick); }
+    });
+    C.TEAM_COLOR.jam = 'rgba(224, 82, 58, 0.45)';
+
+    // ---- transport commands (the chrome speaks paintbot's command chars) --
+    function command(cmd) {
+      switch (cmd) {
+        case '1': state.sp = 1; break;
+        case '2': state.sp = 2; break;
+        case '3': state.sp = 3; break;
+        case '4': state.sp = 4; break;
+        case '8': state.sp = 8; break;
+        case '6': state.sp = 16; break;
+        default: break;
+      }
+      applySpeed();
+      renderChrome();
+    }
+    function applySpeed() {
+      if (core) core.setSpeed(state.ff ? BURN_SPEED : state.sp);
+    }
+
+    // ---- readouts ----------------------------------------------------------
+    function clock(secondsLeft) {
+      var total = Math.max(0, Math.round(secondsLeft));
+      var mm = Math.floor(total / 60);
+      var ss = total % 60;
+      return (mm < 10 ? '0' : '') + mm + ':' + (ss < 10 ? '0' : '') + ss;
+    }
+    function districtName(index) { return DISTRICTS[index] || '-'; }
+    function districtIndex(pair) {
+      if (!pair || pair.length !== 2) return -1;
+      return pair[0] + 3 * pair[1];
+    }
+    // Plain-language plan lines. This is where the LLM is visible playing:
+    // a spectator sees a strategy change BEFORE the roads change.
+    function planLine(alias, plan) {
+      var bits = [];
+      bits.push(plan.congestion_weight === 0 ? 'no repricing'
+        : 'reprice ' + plan.congestion_weight);
+      bits.push('dispatch ' + plan.dispatch);
+      if (plan.avoid) bits.push('avoid ' + districtName(districtIndex(plan.avoid)));
+      if (plan.corridor) {
+        bits.push('via ' + districtName(districtIndex(plan.corridor)));
+      }
+      bits.push(plan.priority + '-first');
+      return alias + ' → ' + bits.join(', ');
+    }
+    function eventLine(event) {
+      switch (event.type) {
+        case 'plan':
+          return planLine(event.fleet, event);
+        case 'fallback':
+          return meta.aliases[event.seat] + ' falls back (' + event.cause + ')';
+        case 'gridlock':
+          return 'GRIDLOCK — ' + event.district_name + ', ' +
+            event.blocked_lanes + ' lanes blocked';
+        case 'meter':
+          return event.held > 0
+            ? event.fleet + ' holds ' + event.held + ' vans at the depot'
+            : null;
+        case 'budget_guard':
+          return 'dispatcher budget guard engaged';
+        default:
+          return null;
+      }
+    }
+    function seatOfAlias(alias) {
+      for (var seat = 0; seat < 4; seat++) {
+        if (meta.aliases[seat] === alias) return seat;
+      }
+      return -1;
+    }
+    function colourOf(seat) {
+      return seat >= 0 && meta.colours[seat] ? meta.colours[seat] : '';
+    }
+
+    // ---- scorebug ----------------------------------------------------------
+    function buildScorebug() {
+      var sides = [$('plates-l'), $('plates-r')];
+      sides[0].textContent = '';
+      sides[1].textContent = '';
+      sides[0].classList.add('row');
+      sides[1].classList.add('row');
+      for (var seat = 0; seat < 4; seat++) {
+        var team = TEAMS[seat];
+        C.TEAM_COLOR[team] = meta.colours[seat] || C.TEAM_COLOR[team];
+        var side = seat < 2 ? 0 : 1;
+        var plate = document.createElement('div');
+        plate.className = 'plate ' + team + ' ' + (side === 0 ? 'side-l' : 'side-r');
+        plate.id = 'plate-' + seat;
+        plate.style.setProperty('--tc', meta.colours[seat] || '');
+        var chip = document.createElement('div');
+        chip.className = 'fleet-chip';
+        plate.appendChild(chip);
+        var ident = document.createElement('div');
+        ident.className = 'team-id';
+        var line = document.createElement('div');
+        line.className = 'lives-line';
+        var name = document.createElement('span');
+        name.className = 'team-name';
+        // textContent only: names are player-controlled data.
+        name.textContent = meta.players[seat] || ('P' + seat);
+        var label = document.createElement('span');
+        label.className = 'lives-label';
+        label.textContent = 'Parcels';
+        var num = document.createElement('span');
+        num.className = 'lives-num';
+        num.id = 'score-' + seat;
+        num.textContent = '0';
+        line.appendChild(name);
+        line.appendChild(label);
+        line.appendChild(num);
+        ident.appendChild(line);
+        var alias = document.createElement('div');
+        alias.className = 'team-alias';
+        alias.textContent = meta.aliases[seat] || '';
+        ident.appendChild(alias);
+        plate.appendChild(ident);
+        sides[side].appendChild(plate);
+      }
+    }
+
+    function cornerOf(seat) {
+      var depot = meta.depots && meta.depots[seat];
+      var node = depot && depot.node ? depot.node : [seat % 2 ? 7 : 1, seat < 2 ? 1 : 7];
+      var west = node[0] < 4, north = node[1] < 4;
+      return north ? (west ? 'nw' : 'ne') : (west ? 'sw' : 'se');
+    }
+
+    function buildFleetbug() {
+      var host = $('fleetbug');
+      host.textContent = '';
+      for (var seat = 0; seat < 4; seat++) {
+        var cell = document.createElement('div');
+        cell.className = 'fleet-counter corner-' + cornerOf(seat);
+        cell.id = 'fleet-' + seat;
+        cell.style.setProperty('--tc', meta.colours[seat] || '');
+        var dot = document.createElement('span');
+        dot.className = 'fleet-dot';
+        var alias = document.createElement('span');
+        alias.className = 'fleet-alias';
+        alias.textContent = meta.aliases[seat] || '';
+        var count = document.createElement('span');
+        count.className = 'fleet-count';
+        count.id = 'fleet-count-' + seat;
+        count.textContent = '0';
+        var bar = document.createElement('span');
+        bar.className = 'fleet-bar';
+        var fill = document.createElement('span');
+        fill.className = 'fleet-bar-fill';
+        fill.id = 'fleet-bar-' + seat;
+        bar.appendChild(fill);
+        cell.appendChild(dot);
+        cell.appendChild(alias);
+        cell.appendChild(count);
+        cell.appendChild(bar);
+        host.appendChild(cell);
+      }
+    }
+
+    function buildPlanbar() {
+      var host = $('planbar');
+      host.textContent = '';
+      for (var seat = 0; seat < 4; seat++) {
+        var chip = document.createElement('div');
+        chip.className = 'planchip';
+        chip.style.setProperty('--tc', meta.colours[seat] || '');
+        var alias = document.createElement('span');
+        alias.className = 'plan-alias';
+        alias.textContent = meta.aliases[seat] || '';
+        var text = document.createElement('span');
+        text.className = 'plan-text';
+        text.id = 'plan-' + seat;
+        text.textContent = '—';
+        chip.appendChild(alias);
+        chip.appendChild(text);
+        host.appendChild(chip);
+      }
+    }
+
+    function buildJamgauge() {
+      var host = $('jamgauge');
+      host.textContent = '';
+      var label = document.createElement('span');
+      label.className = 'jam-label';
+      label.textContent = 'Jam';
+      var track = document.createElement('span');
+      track.className = 'jam-track';
+      var fill = document.createElement('span');
+      fill.className = 'jam-fill';
+      fill.id = 'jam-fill';
+      track.appendChild(fill);
+      var value = document.createElement('span');
+      value.className = 'jam-value';
+      value.id = 'jam-value';
+      value.textContent = '0';
+      var grid = document.createElement('span');
+      grid.className = 'jam-grid';
+      for (var d = 0; d < 9; d++) {
+        var cell = document.createElement('span');
+        cell.className = 'jam-cell heat-0';
+        cell.id = 'jam-cell-' + d;
+        cell.textContent = '0';
+        grid.appendChild(cell);
+      }
+      host.appendChild(label);
+      host.appendChild(track);
+      host.appendChild(value);
+      host.appendChild(grid);
+    }
+
+    // ---- the full-match timeline, built up front from meta.events --------
+    function indexEvents() {
+      var events = meta.events || [];
+      // Scrubber beats: every gridlock (tall red) and every jam (short amber)
+      // is a seek target; deliveries are too many to mark. Spoiler-gated by
+      // the chrome's applySpoilers.
+      events.forEach(function (e) {
+        if (e.type === 'gridlock') {
+          C.markBeat(e.t, 'gridlock', '', eventLine(e));
+        } else if (e.type === 'jam') {
+          C.markBeat(e.t, 'jam', '', 'Jam on ' + e.from + ' → ' + e.to +
+            ' (' + e['class'] + ')');
+        }
+      });
+      // Lull spans: LULL_TICKS stretches with no deliver, gridlock or jam
+      // run at 16x under the inherited skip machinery.
+      var busy = {};
+      events.forEach(function (e) {
+        if (e.type === 'deliver' || e.type === 'gridlock' || e.type === 'jam') {
+          busy[Math.floor(e.t / LULL_TICKS)] = true;
+        }
+      });
+      var spans = [];
+      var total = Math.ceil(tickCount / LULL_TICKS);
+      for (var i = 0; i < total; i++) {
+        if (busy[i]) continue;
+        var a = i * LULL_TICKS, b = Math.min(tickCount, (i + 1) * LULL_TICKS);
+        if (spans.length && spans[spans.length - 1][1] === a) {
+          spans[spans.length - 1][1] = b;
+        } else {
+          spans.push([a, b]);
+        }
+      }
+      lullSpans = spans;
+      state.lulls = spans;
+      C.ingestLullSpans(state);
+
+      // Momentum: the four delivered curves plus the jam index (a fifth,
+      // dim red line scaled to the delivered peak), across the whole match.
+      var delivered = [0, 0, 0, 0];
+      var peak = 1;
+      events.forEach(function (e) {
+        if (e.type === 'deliver' && e.n > peak) peak = e.n;
+      });
+      var jam = 0;
+      var pts = [[0, 0, 0, 0, 0, 0]];
+      events.forEach(function (e) {
+        if (e.type === 'deliver') {
+          delivered[e.f | 0] = e.n | 0;
+        } else if (e.type === 'turn_start' || e.type === 'heat') {
+          jam = e.jam_index | 0;
+        } else {
+          return;
+        }
+        pts.push([e.t].concat(delivered, [jam * peak / 100]));
+      });
+      pts.push([tickCount].concat(delivered, [jam * peak / 100]));
+      state.lead = { teams: TEAMS.concat(['jam']), pts: pts };
+      C.ingestLeadSeries(state);
+
+      var results = meta.results || {};
+      if (results.winner === null || results.winner === undefined) {
+        C.setVerdict({ draw: true, t: tickCount });
+      } else {
+        C.setVerdict({ winner: TEAMS[results.winner], t: tickCount });
+      }
+    }
+
+    function inLull(tick) {
+      for (var i = 0; i < lullSpans.length; i++) {
+        if (tick >= lullSpans[i][0] && tick < lullSpans[i][1]) return true;
+      }
+      return false;
+    }
+
+    // ---- feed, banners, flashes -------------------------------------------
+    function feed(text, colour) {
+      feedLines.push({ text: text, colour: colour });
+      while (feedLines.length > 6) feedLines.shift();
+      paintFeed();
+    }
+    function paintFeed() {
+      var host = $('killfeed');
+      host.textContent = '';
+      feedLines.forEach(function (line) {
+        var el = document.createElement('div');
+        el.className = 'feed-row';
+        el.style.setProperty('--tc', line.colour || '');
+        var who = document.createElement('span');
+        who.className = 'who';
+        who.textContent = line.text;
+        el.appendChild(who);
+        host.appendChild(el);
+      });
+    }
+    function banner(text, kind, colour) {
+      var host = $('bannerlane');
+      var el = document.createElement('div');
+      el.className = 'banner-chip ' + (kind || '') + (colour ? ' accent' : '');
+      if (colour) el.style.setProperty('--tc', colour);
+      el.textContent = text;
+      host.appendChild(el);
+      window.setTimeout(function () {
+        el.classList.add('leaving');
+        window.setTimeout(function () { el.remove(); }, 300);
+      }, 2600);
+    }
+    function bumpFleet(seat) {
+      var el = $('fleet-' + seat);
+      if (!el) return;
+      el.classList.add('bump');
+      window.setTimeout(function () { el.classList.remove('bump'); }, 220);
+    }
+    function flashGridlock() {
+      var flash = $('jamflash');
+      flash.classList.add('show');
+      window.setTimeout(function () {
+        flash.classList.remove('show');
+      }, 2200);
+    }
+
+    function applyEvents(events) {
+      for (var i = 0; i < events.length; i++) {
+        var e = events[i];
+        var line = eventLine(e);
+        switch (e.type) {
+          case 'plan': {
+            var seat = e.seat | 0;
+            if (line) feed(line, colourOf(seat));
+            if (e.say) feed(e.fleet + ' says "' + e.say + '"', colourOf(seat));
+            break;
+          }
+          case 'fallback':
+            if (line) feed(line, C.RED);
+            break;
+          case 'deliver':
+            bumpFleet(e.f | 0);
+            break;
+          case 'gridlock':
+            if (line) feed(line, C.RED);
+            banner(line, 'gridlock', '');
+            flashGridlock();
+            break;
+          case 'meter': {
+            var holder = seatOfAlias(e.fleet);
+            if (line) feed(line, colourOf(holder));
+            if (e.held >= HELD_BANNER) banner(line, '', colourOf(holder));
+            break;
+          }
+          case 'budget_guard':
+            if (line) feed(line, '');
+            break;
+          default: break;
+        }
+      }
+    }
+
+    // ---- per-frame chrome --------------------------------------------------
+    function applyFrame(frame) {
+      var leader = 0;
+      for (var seat = 0; seat < 4; seat++) {
+        state.teams[TEAMS[seat]] = { lives: frame.delivered[seat] };
+        var num = $('score-' + seat);
+        if (num) num.textContent = String(frame.delivered[seat]);
+        var count = $('fleet-count-' + seat);
+        if (count) count.textContent = String(frame.delivered[seat]);
+        var bar = $('fleet-bar-' + seat);
+        if (bar) {
+          bar.style.width = Math.round(100 * frame.on_road[seat] /
+            Math.max(1, meta.vans_per_fleet)) + '%';
+        }
+        if (frame.plans && frame.plans[seat]) {
+          var text = $('plan-' + seat);
+          if (text) {
+            text.textContent = 'reprice ' + frame.plans[seat].congestion_weight +
+              ' / dispatch ' + frame.plans[seat].dispatch;
+          }
+        }
+        if (frame.delivered[seat] > frame.delivered[leader]) leader = seat;
+      }
+      for (seat = 0; seat < 4; seat++) {
+        var plate = $('plate-' + seat);
+        if (plate) plate.classList.toggle('leader', seat === leader);
+      }
+      var fill = $('jam-fill');
+      if (fill) {
+        fill.style.width = Math.max(2, frame.jam) + '%';
+        fill.className = 'jam-fill' + (frame.jam > 70 ? ' hot'
+          : (frame.jam > 45 ? ' warm' : ''));
+      }
+      var value = $('jam-value');
+      if (value) value.textContent = String(frame.jam);
+      for (var d = 0; d < 9 && d < frame.digits.length; d++) {
+        var cell = $('jam-cell-' + d);
+        if (!cell) continue;
+        cell.textContent = String(frame.digits[d]);
+        cell.className = 'jam-cell heat-' + Math.min(9, frame.digits[d]);
+      }
+      if (frame.events && frame.events.length) applyEvents(frame.events);
+    }
+
+    function renderChrome() {
+      var timeEl = $('clock-time'), capEl = $('clock-caption');
+      timeEl.textContent = clock((tickCount - state.t) / fps);
+      capEl.textContent = state.ff
+        ? 'CITY FLOWING — ' + BURN_SPEED + '×'
+        : ('turn ' + (lastFrame ? lastFrame.turn : 0) + '/' +
+           Math.max(1, Math.round(tickCount / turnTicks)));
+      C.renderTransport(state);
+    }
+
+    // ---- endcard -----------------------------------------------------------
+    function showEndcard() {
+      var results = meta.results || {};
+      var winner = results.winner;
+      var delivered = results.delivered || [0, 0, 0, 0];
+      $('ec-headline').textContent = (winner === null || winner === undefined)
+        ? 'No winner — ' + (results.total_delivered || 0) +
+          ' parcels delivered'
+        : (meta.aliases[winner] || '?') + ' wins — ' +
+          delivered[winner] + ' parcels';
+      $('ec-wincond').textContent = 'Most parcels delivered wins. Score is ' +
+        'your own deliveries — not a share, so the total is destructible.';
+      var stalled = 0;
+      var seconds = results.stalled_vehicle_seconds || [];
+      for (var s = 0; s < seconds.length; s++) stalled += seconds[s];
+      $('ec-how').textContent = (results.total_delivered || 0) +
+        ' parcels delivered · mean jam ' + (results.jam_index_mean || 0) +
+        ' · peak ' + (results.jam_index_peak || 0) + ' · ' +
+        (results.gridlock_events || 0) + ' gridlocks — the city lost an ' +
+        'estimated ' + Math.round(stalled / 60) +
+        ' minutes of van time to queues';
+      var host = $('ec-teams');
+      host.textContent = '';
+      for (var seat = 0; seat < 4; seat++) {
+        var el = document.createElement('div');
+        el.className = 'ec-team' + (seat === winner ? ' win' : '');
+        el.style.setProperty('--tc', meta.colours[seat] || '');
+        var name = document.createElement('div');
+        name.className = 'ec-tname';
+        name.textContent = meta.players[seat] + ' · ' + meta.aliases[seat];
+        var num = document.createElement('div');
+        num.className = 'ec-num';
+        num.textContent = delivered[seat] + ' parcels';
+        var line = document.createElement('div');
+        line.className = 'ec-pol';
+        line.textContent = 'mean trip ' +
+          (results.mean_trip_seconds ? results.mean_trip_seconds[seat] : 0) +
+          ' s · stalled ' +
+          Math.round((seconds[seat] || 0) / 60) + ' van-min · backlog ' +
+          (results.backlog_final ? results.backlog_final[seat] : 0);
+        el.appendChild(name);
+        el.appendChild(num);
+        el.appendChild(line);
+        host.appendChild(el);
+      }
+      $('endcard').classList.add('on');
+    }
+
+    // ---- boot --------------------------------------------------------------
+    var board = $('board');
+    core = window.GridlockStaticReplay.createCore({
+      canvas: board,
+      onText: function (text) {
+        var payload;
+        try { payload = JSON.parse(text); } catch (ignore) { return; }
+        if (payload.type === 'meta') {
+          meta = payload;
+          tickCount = Math.max(1, payload.tick_count || 1);
+          fps = payload.ticks_per_second || 24;
+          turnTicks = payload.turn_ticks || 240;
+          state.mx = tickCount;
+          state.mt = tickCount;
+          state.en = true;
+          buildScorebug();
+          buildFleetbug();
+          buildPlanbar();
+          buildJamgauge();
+          indexEvents();
+          applySpeed();
+          renderChrome();
+          return;
+        }
+        if (!meta) return;
+        lastTick = payload.t || 0;
+        lastFrame = payload;
+        state.t = lastTick;
+        applyFrame(payload);
+        // Lull skipping: burn at 16x through the quiet stretches.
+        var ff = state.sk && inLull(state.t);
+        if (ff !== state.ff) { state.ff = ff; applySpeed(); }
+        if (lastTick >= tickCount - 1) {
+          if (state.lp) { core.seek(0); }
+          else if (!ended) {
+            ended = true;
+            state.ph = 'gameover';
+            showEndcard();
+          }
+        }
+        renderChrome();
+      },
+      onStatus: function (status) {
+        var chip = $('status');
+        if (status === 'error') chip.classList.add('show');
+      },
+      onFirstFrame: function () {
+        $('lockerroom').classList.add('gone');
+        $('status').textContent = '';
+        // The band was reserved before the worker was listening for resizes;
+        // fit the board to its real box now that it is.
+        core.setViewportFit();
+      }
+    });
+    // Every seek — scrub click, beat marker, back/forward, keyboard — takes
+    // the score screen down so the match is visible again; the card comes
+    // back when playback reaches the end once more. The card never covers
+    // the transport band (#endcard bottom: var(--band)), so the scrubber
+    // stays clickable underneath it.
+    var rawSeek = core.seek;
+    core.seek = function (tick) {
+      tick = Math.max(0, Math.min(tickCount - 1, Math.round(tick)));
+      rawSeek(tick);
+      feedLines = [];
+      paintFeed();
+      if (tick < tickCount - 1) {
+        ended = false;
+        state.ph = 'playing';
+        $('endcard').classList.remove('on');
+      }
+    };
+
+    // ---- transport wiring --------------------------------------------------
+    function bind(id, fn) { var el = $(id); if (el) el.addEventListener('click', fn); }
+    function setPlaying(on) {
+      state.pl = !!on;
+      core.setPlaying(state.pl);
+      renderChrome();
+    }
+    bind('btn-play', function () { setPlaying(!state.pl); });
+    bind('btn-restart', function () { core.seek(0); setPlaying(true); });
+    // Back one tick and forward five seconds, the inherited transport's own
+    // meanings. #btn-restart is the seek to zero.
+    bind('btn-back', function () {
+      core.seek(Math.max(0, lastTick - 1));
+      setPlaying(false);
+    });
+    bind('btn-fwd', function () {
+      var step = 5 * (meta.ticks_per_second || 24);
+      core.seek(Math.min(tickCount - 1, lastTick + step));
+    });
+    bind('btn-end', function () { core.seek(tickCount - 1); });
+    bind('btn-loop', function () { state.lp = !state.lp; renderChrome(); });
+    bind('btn-skip', function () { state.sk = !state.sk; renderChrome(); });
+    // #btn-spoilers is wired by chrome_common itself (setSpoilers).
+    $('scrub').addEventListener('click', function (event) {
+      var box = this.getBoundingClientRect();
+      if (!box.width) return;
+      core.seek(((event.clientX - box.left) / box.width) * (tickCount - 1));
+    });
+    window.addEventListener('keydown', function (event) {
+      if (!meta) return;
+      if (event.key === ' ') { setPlaying(!state.pl); event.preventDefault(); }
+      else if (event.key === 'b') { core.seek(lastTick - 1); setPlaying(false); }
+      else if (event.key === '.') core.seek(lastTick + 5 * (meta.ticks_per_second || 24));
+      else if (event.key === 'e') core.seek(tickCount - 1);
+      else if (event.key === 'r') state.lp = !state.lp;
+      else if (event.key === 'f') state.sk = !state.sk;
+      else if (event.key === ',') { core.seek(0); setPlaying(true); }
+      else if (event.key === 'o') C.setSpoilers(!C.getSpoilers());
+      renderChrome();
+    });
+    window.addEventListener('resize', function () { core.setViewportFit(); });
+    core.setSpeed(state.sp);
+    core.start();
+
+    // --hudscale / .tiny relayout loop, inherited from the starter.
+    var lastBoardBox = '';
+    function relayout() {
+      var stage = $('stage');
+      // --u is computed on :root from --hudscale, so the knob has to be set
+      // on :root too (a value on #stage would never reach --u).
+      var root = document.documentElement;
+      var width = stage.clientWidth || 760;
+      root.style.setProperty('--hudscale',
+        String(Math.max(0.5, Math.min(1.6, width / 760))));
+      stage.classList.toggle('tiny', width <= 620);
+      // Reserve the scorebug's and the transport's natural heights at the
+      // top and bottom of the stage so the board, the counters and the
+      // endcard stop clear of both.
+      var scorebug = $('scorebug');
+      var transport = $('transport');
+      var topBand = scorebug ? scorebug.offsetHeight : 0;
+      var band = transport ? transport.offsetHeight : 0;
+      root.style.setProperty('--topband', topBand + 'px');
+      root.style.setProperty('--band', band + 'px');
+      // The city is a square letterboxed inside the board box; the fleet
+      // counters pin to that square's corners.
+      var boardH = Math.max(0, stage.clientHeight - topBand - band);
+      root.style.setProperty('--sq', Math.min(width, boardH) + 'px');
+      // The board canvas shrinks by the bands, so re-fit the core whenever
+      // its box changes — it only listens for window resizes on its own,
+      // and a stale viewport stretches the city.
+      var boxKey = board.clientWidth + 'x' + board.clientHeight;
+      if (boxKey !== lastBoardBox) {
+        lastBoardBox = boxKey;
+        if (core) core.setViewportFit();
+      }
+      // The shell reports a failed load on <html data-replay-error>; drop
+      // the curtain so its Retry banner is reachable.
+      if (!failedShown && root.hasAttribute('data-replay-error')) {
+        failedShown = true;
+        $('lockerroom').classList.add('gone');
+      }
+      requestAnimationFrame(relayout);
+    }
+    relayout();
+  }
+})();
+</script>
 </body>
 </html>

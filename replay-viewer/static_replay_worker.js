@@ -24,6 +24,12 @@ var core = null;
 var minimapSurface = null;
 var failed = false;
 var disposed = false;
+// The replay file's full event stream, read off the fetched bytes. The wasm
+// meta packet carries the roster, the geometry and the results but not the
+// events (src/gridlock/render.nim); the page builds its scrubber beats,
+// lull spans and momentum curves up front from them, so they ride the meta
+// text the core forwards (withReplayEvents).
+var replayEvents = null;
 
 function stageNote() {
   // The fixed progress buffer survives an ABORTING_MALLOC failure even though
@@ -92,6 +98,27 @@ function sendRuntimeInput(text) {
   });
 }
 
+function readReplayEvents(bytes) {
+  try {
+    var document = JSON.parse(new TextDecoder().decode(bytes));
+    return document && Array.isArray(document.events) ? document.events : [];
+  } catch (ignored) {
+    return [];
+  }
+}
+
+function withReplayEvents(text) {
+  if (!replayEvents || text.indexOf('"type":"meta"') < 0) return text;
+  try {
+    var meta = JSON.parse(text);
+    if (!meta || meta.type !== 'meta') return text;
+    meta.events = replayEvents;
+    return JSON.stringify(meta);
+  } catch (ignored) {
+    return text;
+  }
+}
+
 function createBroadcastCore(message) {
   core = self.BroadcastCore.create({
     canvas: message.canvas,
@@ -99,7 +126,7 @@ function createBroadcastCore(message) {
     viewportHeight: message.height,
     devicePixelRatio: message.dpr,
     onText: function (text) {
-      postMessage({ type: 'text', text: text });
+      postMessage({ type: 'text', text: withReplayEvents(text) });
     },
     onStatus: function (status) {
       postMessage({ type: 'status', status: status });
@@ -154,6 +181,7 @@ async function start() {
     var buffer = await fetchReplay(message.replayUrl, message.fetchTimeoutMs);
     var bytes = new Uint8Array(buffer);
     if (!bytes.length) throw new Error('Replay response was empty');
+    replayEvents = readReplayEvents(bytes);
     var loaded = copyIntoRuntime(bytes, function (pointer, length) {
       return Module._gridlock_load_replay(pointer, length);
     });
