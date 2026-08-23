@@ -487,20 +487,8 @@
         loop.classList.toggle('on', looping);
       };
     }
-    var zoomIn = el('zoom-in');
-    if (zoomIn) zoomIn.onclick = function () { core.zoomAt(1.4); };
-    var zoomOut = el('zoom-out');
-    if (zoomOut) zoomOut.onclick = function () { core.zoomAt(1 / 1.4); };
-    var slider = el('zoom-slider');
-    if (slider) {
-      slider.oninput = function () {
-        core.setZoom(Number(slider.value) || 1);
-        var read = el('zoom-read');
-        if (read) read.textContent = slider.value + '\u00d7';
-      };
-    }
-    var minimap = el('minimap-canvas');
-    if (minimap) core.attachMinimap(minimap);
+    // No zoom bar and no minimap: the whole district grid fits the stage,
+    // so there is nothing a zoomed view would show that the board does not.
     globalScope.addEventListener('resize', core.setViewportFit);
     buildSpeedChips();
     core.start();

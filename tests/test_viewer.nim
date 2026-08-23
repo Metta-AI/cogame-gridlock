@@ -22,8 +22,7 @@ let chrome = readSource("client/chrome_common.js")
 const InheritedChromeIds = [
   "viewport", "stage", "board", "lightpool", "grain", "chrome", "scorebug",
   "plates-l", "plates-r", "clock", "clock-time", "clock-caption",
-  "ffwd-mini", "viewpanel", "minimap", "minimap-canvas", "zoombar",
-  "zoom-out", "zoom-slider", "zoom-in", "zoom-read", "mmwarn", "bannerlane",
+  "ffwd-mini", "mmwarn", "bannerlane",
   "killfeed", "transport", "btn-restart", "btn-back", "btn-play", "btn-fwd",
   "btn-end", "btn-loop", "btn-skip", "btn-spoilers", "ffwd-chip", "win-chip",
   "tick-clock", "speedchips", "scrub", "momentum", "scrub-fill", "lulls",
@@ -201,7 +200,6 @@ suite "chrome":
     let index = page.find("@media (max-width: 640px)")
     let narrow = page[index ..< min(page.len, index + 900)]
     check narrow.contains("#planbar{display:none}")
-    check narrow.contains("#viewpanel{display:none}")
     check narrow.contains(".chiplabel{display:none}")
     check page.contains("--hudscale")
     check page.contains("--u:")
