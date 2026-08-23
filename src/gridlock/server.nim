@@ -217,6 +217,7 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
         "baseline and the match continues")
 
     let client = newLlmClient(cfg.maxOutputTokens, cfg.model)
+    client.turnBudgetSeconds = cfg.turnBudgetSeconds
     var guarded = false
     let turns = turnsPerEpisode(cfg)
 

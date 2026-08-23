@@ -119,6 +119,9 @@ type
     bedrockToken: string
     model*: string
     maxOutputTokens*: int
+    turnBudgetSeconds*: float
+      ## The outer per-turn deadline decideAll holds itself to. 0 disables
+      ## it, which is what the offline test client runs with.
     disabled*: bool
     batchOverride*: BatchProc
       ## Test seam: when set, decideAll drives this instead of libcurl, so
@@ -309,8 +312,19 @@ proc decideAll*(client: LlmClient, seats: array[Seats, SeatRequest]):
   for attempt in 0 .. 1:
     if open.len == 0 or client.disabled:
       break
-    let timeout =
+    ## The outer per-turn deadline. The two attempt deadlines already sum to
+    ## 14 + 6 = 20 s inside the 22 s budget; this is what holds the bound
+    ## when an attempt overruns its own timeout, and it drops a retry that
+    ## could not finish inside the turn rather than starting it.
+    var timeout =
       if attempt == 0: FirstAttemptSeconds else: RetryAttemptSeconds
+    if client.turnBudgetSeconds > 0.0:
+      let remaining = int(client.turnBudgetSeconds - (epochTime() - turnStart))
+      if remaining < 1:
+        logLine("llm: turn budget spent; skipping attempt ", attempt + 1)
+        break
+      if remaining < timeout:
+        timeout = remaining
     var requests: seq[LlmRequest]
     for seat in open:
       let user = userMessage(seats[seat], attempt > 0)

@@ -147,6 +147,33 @@ suite "one parallel batch per turn":
       check decision.plans[seat].source == psFallback
       check planIsLegal(decision.plans[seat])
 
+  test "the outer per-turn deadline clamps an attempt and drops the retry":
+    ## The note lists "one outer per-turn deadline of 22.0 s" among the
+    ## bounded waits. It clamps each attempt to what is left of the turn
+    ## budget and refuses to start a retry that cannot finish inside it, so
+    ## the turn is bounded even if an attempt overruns its own timeout.
+    var deadlines: seq[int]
+    let client = newOfflineLlmClient(
+      proc (requests: seq[LlmRequest], timeoutSeconds: int): seq[LlmReply]
+          {.closure.} =
+        deadlines.add(timeoutSeconds)
+        sleep(1100)
+        result = newSeq[LlmReply](requests.len)
+        for i, request in requests:
+          result[i] = LlmReply(seat: request.seat,
+            error: "llm transport: timed out"))
+    client.turnBudgetSeconds = 2.0
+    var game = newTestSim(960)
+    let decision = client.decideAll(seatRequests(game, allKinds(skNone)))
+    ## One attempt only — the retry could not have finished inside the
+    ## budget — and that attempt was clamped from 14 s to what was left of it.
+    check deadlines.len == 1
+    check deadlines[0] >= 1
+    check deadlines[0] <= 2
+    for seat in 0 ..< Seats:
+      check decision.plans[seat].source == psFallback
+      check planIsLegal(decision.plans[seat])
+
 suite "wall-clock guards":
   test "the budget guard engages before two more turns would overrun":
     check not budgetGuardEngaged(0.0, 22.0, 660.0)
