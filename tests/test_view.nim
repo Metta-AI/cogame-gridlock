@@ -22,7 +22,24 @@ suite "the per-seat view":
     for _ in 0 ..< 3:
       discard runTurn(game, scriptedPlansFor(game, allKinds(skDispatcher)))
 
-  test "the documented keys are all there":
+  test "events_last_turn covers the turn that just played, and only it":
+    ## `buildView` runs before `installPlans` advances the turn, so the
+    ## window is `[sim.turn * turnTicks, +turnTicks)`. A window one turn wider
+    ## reports a jam that cleared two turns ago as if it were current.
+    let lower = game.turn * game.config.turnTicks
+    check lower > 0
+    ## Plant one describable event inside the window and one just before it.
+    game.events.add(newEvent(seJam, lower - 1, game.turn - 1, %*{
+      "lane": 0, "from": "0,0", "to": "1,0", "class": "local", "q": 12}))
+    game.events.add(newEvent(seJam, lower + 5, game.turn, %*{
+      "lane": 1, "from": "1,0", "to": "2,0", "class": "arterial", "q": 13}))
+    let lines = eventsLastTurn(game, 6)
+    check lines.len >= 1
+    for line in lines:
+      check not line.contains("0,0->1,0")
+    check lines[0].contains("1,0->2,0")
+
+
     let view = buildView(game, 0)
     for key in ["turn", "of", "tick", "ticks_left", "seconds_left", "you",
         "city", "fleets", "events_last_turn"]:

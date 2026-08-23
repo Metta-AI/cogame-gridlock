@@ -86,7 +86,10 @@ proc baselineInput*(sim: Sim, seat: int): BaselineInput =
     result.nextDestDistricts.add(districtOfNode(sim.backlog[seat][i].dest))
 
 proc eventsLastTurn*(sim: Sim, limit: int): seq[string] =
-  let lower = max(0, (sim.turn - 1) * sim.config.turnTicks)
+  ## The turn that just played. `buildView` runs BEFORE `installPlans`
+  ## advances `sim.turn`, so at the start of turn N `sim.turn` is N-1 and its
+  ## window is `[(N-1)*turnTicks, N*turnTicks)` — one turn, not two.
+  let lower = max(0, sim.turn * sim.config.turnTicks)
   for i in countdown(sim.events.high, 0):
     if sim.events[i].t < lower:
       break
