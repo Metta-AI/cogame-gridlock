@@ -58,6 +58,33 @@ suite "determinism":
       inc turn
     check digestsOf(base) != digestsOf(perturbed)
 
+  test "a ONE-unit change to a plan integer the rules can act on shows up":
+    ## The case above perturbs by +37 because `congestionWeight` feeds
+    ## `jamTerm = (weight * occupancy * 24) div 100`, which one unit cannot
+    ## move on an empty lane. `dispatch` has no such floor:
+    ## `activeCap = (dispatch * fleetSize + fleetSize) div 100` steps by a
+    ## whole van every two units, so 20 and 21 are one unit apart and one van
+    ## apart -- and a cap of 10 or 11 out of 50 vans is low enough to bind.
+    var probe = defaultPlan()
+    probe.dispatch = 20
+    let capLow = activeCap(probe, 50)
+    probe.dispatch = 21
+    let capHigh = activeCap(probe, 50)
+    check capHigh == capLow + 1
+    var base = newTestSim(episodeTicks(1920), 11)
+    var perturbed = newTestSim(episodeTicks(1920), 11)
+    var turn = 0
+    while base.tick < base.config.episodeTicks:
+      var plans = scriptedPlansFor(base, allKinds(skDispatcher))
+      var tweaked = scriptedPlansFor(perturbed, allKinds(skDispatcher))
+      if turn == 1:
+        plans[0].dispatch = 20
+        tweaked[0].dispatch = 21
+      discard runTurn(base, plans)
+      discard runTurn(perturbed, tweaked)
+      inc turn
+    check digestsOf(base) != digestsOf(perturbed)
+
   test "the replan FIFO order is a function of the seed and the plans alone":
     var a = newTestSim(episodeTicks(1440), 31)
     var b = newTestSim(episodeTicks(1440), 31)
