@@ -8,8 +8,13 @@ Everything here is painted rather than stood in for: the asphalt is a seamless
 cool-grey tile with enough noise that the congestion heat ramp reads against
 it, the intersection is a painted box with lane markings, the city blocks are
 park / rooftop tiles keyed off the cityspec `scenery` list, each depot is a
-warehouse with a visible dock door tinted to its fleet hue, and the vans are
-two 8 px sprites tinted per fleet at draw time.
+warehouse with a visible dock door tinted to its fleet hue.
+
+The vans are NOT painted here any more: van.png and van_loaded.png are
+nano-banana renders of a Softmax cog driving a grey cargo cart, produced by
+scripts/art/split_van_sheet.py from scripts/art/source/vans_sheet.png. The
+viewer tints the grey cart per depot at load. make_van stays only as the
+historical 8 px fallback and is no longer called.
 """
 import math
 import os
@@ -150,8 +155,7 @@ def main():
     make_plaza(out)
     for name, tint in FLEETS.items():
         make_depot(out, name, tint)
-    make_van(out, "van", False)
-    make_van(out, "van_loaded", True)
+    # van.png / van_loaded.png are owned by split_van_sheet.py (see docstring)
     make_parcel_pin(out)
     print("wrote gridlock art to", out)
 

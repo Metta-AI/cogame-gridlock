@@ -41,16 +41,40 @@
   }
 
   // Pre-tinting is done ONCE per fleet at load: per-draw tinting of 200 vans
-  // a frame would cost a composite per van.
+  // a frame would cost a composite per van. Only the cart body takes the
+  // depot colour: the sprite is a nano-banana render of a Softmax cog driving
+  // a deliberately unpainted grey cart, so low-saturation pixels are cart and
+  // everything else (the cog, the parcels, the dark outlines) is left alone.
+  var VAN_PX = 22;
   function tinted(bitmap, colour) {
     var surface = makeSurface(bitmap.width, bitmap.height);
     var ctx = surface.getContext('2d');
     ctx.drawImage(bitmap, 0, 0);
-    ctx.globalCompositeOperation = 'source-atop';
-    ctx.fillStyle = colour;
-    ctx.globalAlpha = 0.72;
-    ctx.fillRect(0, 0, bitmap.width, bitmap.height);
+    var rgb = hexRgb(colour);
+    if (!rgb) return surface;
+    var image;
+    try { image = ctx.getImageData(0, 0, bitmap.width, bitmap.height); }
+    catch (ignore) { return surface; }
+    var d = image.data;
+    for (var i = 0; i < d.length; i += 4) {
+      if (!d[i + 3]) continue;
+      var r = d[i], g = d[i + 1], b = d[i + 2];
+      var hi = Math.max(r, g, b), lo = Math.min(r, g, b);
+      if (hi - lo > 28 || hi < 90) continue;  // coloured or outline: keep
+      var lum = hi / 215;                    // cart grey peaks ~#d6d6d6
+      d[i] = Math.min(255, rgb[0] * lum);
+      d[i + 1] = Math.min(255, rgb[1] * lum);
+      d[i + 2] = Math.min(255, rgb[2] * lum);
+    }
+    ctx.putImageData(image, 0, 0);
     return surface;
+  }
+
+  function hexRgb(colour) {
+    var m = /^#([0-9a-f]{6})$/i.exec(String(colour || ''));
+    if (!m) return null;
+    var n = parseInt(m[1], 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
   }
 
   function create(config) {
@@ -307,7 +331,15 @@
         var sprite = stateCode === 1
           ? vans.loaded[seat] : vans.plain[seat];
         if (sprite) {
-          ctx.drawImage(sprite, x - 4, y - 4, 8, 8);
+          // the cart is a side view facing right: flip for westbound lanes,
+          // rotate for north/south, and sit its wheels just below the cell
+          ctx.save();
+          ctx.translate(x, y);
+          var fx = ux, fy = uy;
+          if (fx < 0) { ctx.scale(-1, 1); fx = -fx; }
+          ctx.rotate(Math.atan2(fy, fx));
+          ctx.drawImage(sprite, -VAN_PX / 2, -VAN_PX * 0.6, VAN_PX, VAN_PX);
+          ctx.restore();
         } else {
           ctx.fillStyle = meta.colours[seat] || '#ddd';
           ctx.fillRect(x - 3, y - 3, 6, 6);
