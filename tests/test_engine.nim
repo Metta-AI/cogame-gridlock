@@ -100,6 +100,30 @@ suite "one parallel batch per turn":
     check decision.plans[1].source == psScripted
     check decision.plans[3].congestionWeight == 0
 
+  test "a recorded plan carries the batch's measured latency":
+    ## `latency_ms` is in the replay's plan record and in the note's event
+    ## table; it has to be the real wait, not a placeholder.
+    let client = newOfflineLlmClient(
+      proc (requests: seq[LlmRequest], timeoutSeconds: int): seq[LlmReply]
+          {.closure.} =
+        sleep(40)
+        result = newSeq[LlmReply](requests.len)
+        for i, request in requests:
+          result[i] = LlmReply(seat: request.seat,
+            text: fakeReplyPlan(35, 70)))
+    var game = newTestSim(960)
+    let decision = client.decideAll(seatRequests(game, allKinds(skNone)))
+    for seat in 0 ..< Seats:
+      check decision.plans[seat].source == psLlm
+      check decision.plans[seat].latencyMs >= 30
+    discard runTurn(game, decision.plans)
+    var planEvents = 0
+    for event in game.events:
+      if event.kind == sePlan:
+        inc planEvents
+        check event.body["latency_ms"].getInt() >= 30
+    check planEvents == Seats
+
   test "a hung client is bounded by the two attempt deadlines":
     ## The fake reports a timeout rather than actually hanging; what the test
     ## pins is that decideAll makes at most two attempts and always returns.

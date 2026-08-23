@@ -15,7 +15,7 @@
 ## With no credentials at all the whole episode finishes on the scripted
 ## layer, which is what makes offline certification and the docker smoke work.
 
-import std/[json, os, strutils]
+import std/[json, os, strutils, times]
 import bitworld/runtime
 import curly
 import types
@@ -305,17 +305,20 @@ proc decideAll*(client: LlmClient, seats: array[Seats, SeatRequest]):
           cause: fcNoCredentials, detail: "no LLM credentials"))
     else:
       open.add(seat)
+  let turnStart = epochTime()
   for attempt in 0 .. 1:
     if open.len == 0 or client.disabled:
       break
+    let timeout =
+      if attempt == 0: FirstAttemptSeconds else: RetryAttemptSeconds
     var requests: seq[LlmRequest]
     for seat in open:
       let user = userMessage(seats[seat], attempt > 0)
       let built = client.requestFor(SystemPrompt, user)
       requests.add(LlmRequest(seat: seat, url: built.url, body: built.body))
-    let timeout =
-      if attempt == 0: FirstAttemptSeconds else: RetryAttemptSeconds
+    let attemptStart = epochTime()
     let replies = runBatch(client, requests, timeout)
+    let latencyMs = int((epochTime() - attemptStart) * 1000.0)
     var stillOpen: seq[int]
     for i, seat in open:
       var failure = ""
@@ -323,6 +326,7 @@ proc decideAll*(client: LlmClient, seats: array[Seats, SeatRequest]):
         try:
           result.plans[seat] = parsePlan(replies[i].text, seats[seat].previous)
           result.plans[seat].source = psLlm
+          result.plans[seat].latencyMs = latencyMs
           inc result.llmSeats
         except CatchableError as error:
           failure = error.msg
@@ -336,7 +340,9 @@ proc decideAll*(client: LlmClient, seats: array[Seats, SeatRequest]):
           cause: causeOf(failure), detail: cleanLine(failure, MaxDetailRunes)))
         stillOpen.add(seat)
     open = stillOpen
+  let spentMs = int((epochTime() - turnStart) * 1000.0)
   for seat in open:
     logLine("llm: seat ", seat, " falling back to the dispatcher plan")
     result.plans[seat] = dispatcherPlan(seats[seat].baseline)
     result.plans[seat].source = psFallback
+    result.plans[seat].latencyMs = spentMs
