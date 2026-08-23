@@ -164,6 +164,21 @@ suite "chrome":
     ## And the frame stream is where the current tick comes from.
     check chrome.contains("lastTick = payload.t || 0")
 
+  test "no visible transport control is a no-op":
+    ## Every button in the transport row is either wired in chrome_common.js
+    ## or hidden. An id that nothing writes to is fine — the chrome is the
+    ## starter's — but a control a spectator can click and see nothing happen
+    ## is not.
+    for id in ["btn-restart", "btn-back", "btn-play", "btn-fwd", "btn-end",
+        "btn-loop"]:
+      check chrome.contains("el('" & id & "')")
+    check chrome.contains("looping = !looping")
+    check chrome.contains("core.seek(0)")
+    for id in ["btn-skip", "btn-spoilers"]:
+      check not chrome.contains("el('" & id & "')")
+      check page.contains(id)
+    check page.contains("#btn-skip,#btn-spoilers{display:none}")
+
   test "the scorebug survives 360 px":
     ## Playbook gotcha: the embedded featured-match iframe is ~360 px wide and
     ## player names collapsed to ellipses.

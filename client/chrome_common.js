@@ -386,6 +386,7 @@
     var chrome = null;
     var meta = null;
     var lastTick = 0;
+    var looping = false;
     var speeds = [1, 2, 3, 4, 8, 16];
     var core = globalScope.GridlockStaticReplay.createCore({
       canvas: board,
@@ -400,6 +401,9 @@
         } else if (chrome) {
           lastTick = payload.t || 0;
           chrome.applyFrame(payload);
+          if (looping && meta && lastTick >= meta.tick_count - 1) {
+            core.seek(0);
+          }
         }
       },
       onStatus: function (status) {
@@ -463,6 +467,17 @@
         if (!meta) return;
         var step = 5 * (meta.ticks_per_second || 24);
         core.seek(Math.min(meta.tick_count - 1, lastTick + step));
+      };
+    }
+    // LOOP restarts the match when playback reaches the end. The two other
+    // inherited buttons in this row (#btn-skip, #btn-spoilers) drive the
+    // lull-span machinery, which gridlock does not ship: they are hidden in
+    // the page's CSS rather than left sitting there doing nothing.
+    var loop = el('btn-loop');
+    if (loop) {
+      loop.onclick = function () {
+        looping = !looping;
+        loop.classList.toggle('on', looping);
       };
     }
     var zoomIn = el('zoom-in');

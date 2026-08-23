@@ -189,6 +189,13 @@ html[data-replay-mismatch-tick] #mmwarn{display:block}
   padding:calc(2*var(--u)) calc(6*var(--u));font-size:calc(11*var(--u));
   cursor:pointer}
 .speedchip.on{color:var(--ink);border-color:rgba(215,228,255,.6)}
+.tbtn.on{color:var(--ink);border-color:rgba(215,228,255,.6)}
+/* Inherited controls gridlock does not drive: the lull-span machinery
+   (#btn-skip, #ffwd-chip, #ffwd-mini) and the spoiler curtain
+   (#btn-spoilers, #win-chip). They keep their ids — the chrome is the
+   starter's, and readout 5 is a v0.2 feature — but a VISIBLE control that
+   does nothing is a legibility defect, so they are not shown. */
+#btn-skip,#btn-spoilers{display:none}
 #tick-clock,#ffwd-chip,#win-chip{font-size:calc(10*var(--u));color:var(--dim);
   font-variant-numeric:tabular-nums}
 
