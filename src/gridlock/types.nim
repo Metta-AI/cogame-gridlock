@@ -48,6 +48,10 @@ const
   MaxSayRunes* = 32
   MaxPolicyRunes* = 48
   MaxDetailRunes* = 200
+  MaxErrorHeadRunes* = 160
+  MaxErrorBodyRunes* = 400
+    ## How much of a raw model reply is quoted back in a parse error. That
+    ## message becomes `fallback.detail`, so the cut is on runes.
   MaxPromptRunes* = 4000
 
   ReplayProtocol* = "gridlock.replay.v1"

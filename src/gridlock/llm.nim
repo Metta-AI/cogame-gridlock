@@ -239,7 +239,7 @@ proc textOf(client: LlmClient, response: Response, error, url: string):
   if error.len > 0:
     raise newException(GridlockError, "llm transport: " & error)
   if response.code == 401 or response.code == 403:
-    let detail = response.body[0 .. min(response.body.high, 400)]
+    let detail = clipRunes(response.body, MaxErrorBodyRunes)
     if "Model access is denied" in response.body and
         client.tryNextBedrockModel("no model access"):
       raise newException(GridlockError, "bedrock model access denied: " & detail)
@@ -247,12 +247,12 @@ proc textOf(client: LlmClient, response: Response, error, url: string):
     raise newException(GridlockError,
       "llm auth failed (" & $response.code & ") at " & url & ": " & detail)
   if response.code == 429:
-    let detail = response.body[0 .. min(response.body.high, 300)]
+    let detail = clipRunes(response.body, MaxErrorHeadRunes)
     discard client.tryNextBedrockModel("throttled")
     raise newException(GridlockError, "llm throttled (429): " & detail)
   if response.code < 200 or response.code >= 300:
     raise newException(GridlockError, "llm error " & $response.code & ": " &
-      response.body[0 .. min(response.body.high, 300)])
+      clipRunes(response.body, MaxErrorHeadRunes))
   let payload = parseJson(response.body)
   if payload{"stop_reason"}.getStr() == "refusal":
     raise newException(GridlockError, "model refusal")

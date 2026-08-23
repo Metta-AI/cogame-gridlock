@@ -103,6 +103,24 @@ suite "tolerant parsing":
     expect GridlockError:
       discard parsePlan("I am not going to answer that.", previous)
 
+  test "the quoted head of an unparseable reply is cut on a rune boundary":
+    ## That message becomes `fallback.detail` in the replay, so it must not
+    ## carry half a multi-byte character out of the model's reply. The truck
+    ## emoji is 4 bytes, so a byte cut at 160 would split one.
+    var prose = ""
+    for _ in 0 ..< 300:
+      prose.add("\xF0\x9F\x9A\x9A")
+    var caught = ""
+    try:
+      discard parsePlan(prose, previous)
+    except GridlockError as error:
+      caught = error.msg
+    check caught.len > 0
+    check validateUtf8(caught) == -1
+    check caught.runeLen <= MaxErrorHeadRunes + 40
+    check cleanLine(caught, MaxDetailRunes).runeLen <= MaxDetailRunes
+    check validateUtf8(cleanLine(caught, MaxDetailRunes)) == -1
+
 suite "rune-safe truncation":
   test "a 400-character note is cut to 140 runes":
     var long = ""

@@ -38,11 +38,13 @@ proc clampPct(value: int): int =
 proc extractJsonObject*(text: string): JsonNode =
   let start = text.find('{')
   if start < 0:
-    var head = strutils.strip(text)
-    if head.len > 160:
-      head = head[0 ..< 160] & "..."
+    ## The head of a raw model reply goes into the exception message, which
+    ## becomes `fallback.detail` in the replay: cut it on RUNE boundaries,
+    ## never bytes. `cleanLine` also flattens the newlines.
+    let head = cleanLine(text, MaxErrorHeadRunes)
     raise newException(GridlockError,
-      "no JSON object in reply: " & head.replace("\n", " "))
+      "no JSON object in reply: " &
+      (if head.runeLen >= MaxErrorHeadRunes: head & "..." else: head))
   var depth = 0
   var inString = false
   var escaped = false
