@@ -450,8 +450,7 @@ proc stepTick*(sim: var Sim) =
   replanStep(sim)
   accumulateStats(sim)
   jamWatch(sim)
-  if sim.tick mod TargetFps == 0:
-    gridlockWatch(sim)
+  gridlockWatch(sim)
   if sim.tick mod 48 == 0:
     refreshHeat(sim)
   inc sim.tick
