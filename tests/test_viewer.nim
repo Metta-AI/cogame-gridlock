@@ -147,6 +147,23 @@ suite "chrome":
     for id in ["fpv", "flagicon", "lives", "squadpips", "killicon"]:
       check not page.contains("id=\"" & id & "\"")
 
+  test "the transport buttons do what the transport says they do":
+    ## Readout 8 lists play/pause, back one tick, +5 s, jump to end. `#btn-back`
+    ## used to seek 0 (which is `#btn-restart`'s job) and `#btn-fwd` used to
+    ## set 16x, so two labelled controls lied about what they did.
+    let back = chrome.find("el('btn-back')")
+    check back > 0
+    let backBody = chrome[back ..< min(chrome.len, back + 200)]
+    check backBody.contains("core.seek(Math.max(0, lastTick - 1))")
+    let fwd = chrome.find("el('btn-fwd')")
+    check fwd > back
+    let fwdBody = chrome[fwd ..< min(chrome.len, fwd + 320)]
+    check fwdBody.contains("5 * (meta.ticks_per_second || 24)")
+    check fwdBody.contains("core.seek(")
+    check not fwdBody.contains("setSpeed(16)")
+    ## And the frame stream is where the current tick comes from.
+    check chrome.contains("lastTick = payload.t || 0")
+
   test "the scorebug survives 360 px":
     ## Playbook gotcha: the embedded featured-match iframe is ~360 px wide and
     ## player names collapsed to ellipses.

@@ -385,6 +385,7 @@
 
     var chrome = null;
     var meta = null;
+    var lastTick = 0;
     var speeds = [1, 2, 3, 4, 8, 16];
     var core = globalScope.GridlockStaticReplay.createCore({
       canvas: board,
@@ -397,6 +398,7 @@
           chrome = createChrome(payload);
           buildSpeedChips();
         } else if (chrome) {
+          lastTick = payload.t || 0;
           chrome.applyFrame(payload);
         }
       },
@@ -449,16 +451,19 @@
     if (restart) restart.onclick = function () { seekFraction(0); };
     var toEnd = el('btn-end');
     if (toEnd) toEnd.onclick = function () { seekFraction(1); };
+    // Back one tick and forward five seconds, the inherited transport's own
+    // meanings. #btn-restart is the seek to zero.
     var back = el('btn-back');
     if (back) {
-      back.onclick = function () {
-        if (!meta || !chrome) return;
-        core.seek(Math.max(0, chrome.meta ? 0 : 0));
-      };
+      back.onclick = function () { core.seek(Math.max(0, lastTick - 1)); };
     }
     var fwd = el('btn-fwd');
     if (fwd) {
-      fwd.onclick = function () { core.setSpeed(16); };
+      fwd.onclick = function () {
+        if (!meta) return;
+        var step = 5 * (meta.ticks_per_second || 24);
+        core.seek(Math.min(meta.tick_count - 1, lastTick + step));
+      };
     }
     var zoomIn = el('zoom-in');
     if (zoomIn) zoomIn.onclick = function () { core.zoomAt(1.4); };
