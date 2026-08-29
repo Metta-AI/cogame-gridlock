@@ -161,10 +161,15 @@
       if (!lastFrame) lastFrame = now;
       accumulator = Math.min(accumulator + Math.min(now - lastFrame, 250), 250);
       lastFrame = now;
-      if (playing && !advanceInFlight && accumulator >= frameMs) {
-        var frames = Math.min(16 * speed,
-          Math.floor(accumulator / frameMs) * speed);
-        accumulator -= Math.max(1, Math.floor(frames / speed)) * frameMs;
+      // Below 1x the tick interval stretches instead of the tick count
+      // shrinking (a tick is indivisible): at 0.5x stepMs is 2*frameMs, so
+      // one sim tick is spent every OTHER display frame.
+      var stepMs = speed < 1 ? frameMs / speed : frameMs;
+      var whole = Math.max(1, speed);
+      if (playing && !advanceInFlight && accumulator >= stepMs) {
+        var frames = Math.min(16 * whole,
+          Math.floor(accumulator / stepMs) * whole);
+        accumulator -= Math.max(1, Math.floor(frames / whole)) * stepMs;
         advanceInFlight = true;
         worker.postMessage({ type: 'advance', frames: Math.max(1, frames) });
       }
@@ -259,7 +264,7 @@
       seek: function (tick) {
         if (worker) worker.postMessage({ type: 'seek', tick: tick });
       },
-      setSpeed: function (value) { speed = Math.max(1, value || 1); },
+      setSpeed: function (value) { speed = Math.max(0.5, value || 1); },
       getSpeed: function () { return speed; },
       setPlaying: function (value) {
         playing = !!value;

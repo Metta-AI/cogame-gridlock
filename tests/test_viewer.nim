@@ -152,7 +152,8 @@ suite "provenance":
   test "chrome_common.js is the starter's file, byte for byte":
     ## The shared chrome is copied, not rewritten: the committed reference
     ## copy is hive's client/chrome_common.js (the starter's plus the
-    ## clickable, labelled beat-marker patch).
+    ## clickable, labelled beat-marker patch, plus the fleet-wide replay
+    ## transport patch: the 0.5x speed chip and its '5' command).
     let reference = readSource("tests/fixtures/chrome_common.starter.js")
     check chrome == reference
     check chrome.contains("window.ChromeCommon = function (ctx)")
@@ -214,6 +215,17 @@ suite "chrome":
       check not page.contains("id=\"" & id & "\"")
     check not pageScript.contains("core.zoomAt")
     check not pageScript.contains("core.attachMinimap")
+
+  test "the 1/2x replay speed reaches every layer":
+    ## The fleet-wide half speed: the chrome's chip map sends command '5'
+    ## (and its file:// fallback speed list leads with 0.5), the page maps
+    ## '5' to sp 0.5, and the shell's playhead stretches the tick interval —
+    ## one sim tick every OTHER display frame — instead of splitting a tick.
+    check chrome.contains("0.5: '5'")
+    check chrome.contains("[0.5, 1, 2, 3, 4, 8, 16]")
+    check pageScript.contains("case '5': state.sp = 0.5; break;")
+    check shell.contains("speed < 1 ? frameMs / speed : frameMs")
+    check shell.contains("Math.max(0.5, value || 1)")
 
   test "a gridlock event drives #jamflash, not only the canvas":
     ## The district rectangle is drawn on the board canvas because only the

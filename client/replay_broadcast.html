@@ -1457,6 +1457,7 @@ html[data-replay-mismatch-tick] #mmwarn { display: block; }
     // ---- transport commands (the chrome speaks paintbot's command chars) --
     function command(cmd) {
       switch (cmd) {
+        case '5': state.sp = 0.5; break;
         case '1': state.sp = 1; break;
         case '2': state.sp = 2; break;
         case '3': state.sp = 3; break;

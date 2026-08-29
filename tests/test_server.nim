@@ -159,6 +159,9 @@ suite "the frames the protocol promises":
 
   test "the wire constants block names the engine constants once":
     check WireConstantsJs.startsWith("window.GRIDLOCK_WIRE={")
+    ## 0.5 is the replay-only half speed (command '5'), spliced ahead of the
+    ## engine's integer PlaybackSpeeds.
+    check WireConstantsJs.contains("speeds:[0.5,1,2,3,4,8,16]")
     check WireConstantsJs.contains("fps:24")
     check WireConstantsJs.contains("laneCount:288")
     check WireConstantsJs.contains("seats:4")
