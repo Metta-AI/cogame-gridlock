@@ -57,3 +57,7 @@ From a Metta checkout with the Coworld training stack installed, pass the
 absolute bridge binary and manifest paths to `recipes.external.coworld.train`
 for native PufferLib or `recipes.external.coworld_metta_rl.train` for Metta RL.
 Set `players=4`; both `default` and `rush` variants are supported.
+
+Both variants completed 512 Metta RL timesteps. At epoch ten, evaluation
+mean return was 0.645 for default and 0.595 for rush. These pilots verify
+the numeric observation and reward path; they do not establish stronger play.
