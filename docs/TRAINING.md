@@ -36,3 +36,23 @@ All 800 default and 480 rush examples fit 4,096 tokens with the local
 WordLevel smoke tokenizer. One CPU optimizer step reduced four-example
 validation loss from 1.71899 to 1.71315 for each variant. This verifies the
 post-training path, not improved league play.
+
+## Numeric reinforcement learning
+
+`tools/train_bridge.nim` exposes the same hosted observation at each turn
+and 45 numeric values drawn only from the public view. Four actions select
+the published `dispatcher` or `beeline` plan, or a dispatcher plan with 40%
+or 60% dispatch. All four seats choose against one turn state before the
+native simulator advances. Terminal scores are delivered parcels; utilities
+are each seat's score divided by 100, preserving the game's non-constant-sum
+objective. The post-training path above supports arbitrary routing-plan JSON.
+
+```sh
+nim c -d:release --path:src -o:/tmp/gridlock-train-bridge tools/train_bridge.nim
+python3 tools/test_train_bridge.py /tmp/gridlock-train-bridge
+```
+
+From a Metta checkout with the Coworld training stack installed, pass the
+absolute bridge binary and manifest paths to `recipes.external.coworld.train`
+for native PufferLib or `recipes.external.coworld_metta_rl.train` for Metta RL.
+Set `players=4`; both `default` and `rush` variants are supported.
