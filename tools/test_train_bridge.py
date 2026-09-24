@@ -51,7 +51,9 @@ def play(variant: str, teacher: bool) -> None:
         assert observation["kind"] == "terminal"
         assert set(observation["scores"]) == {"0", "1", "2", "3"}
         assert set(observation["utilities"]) == set(observation["scores"])
-        assert all(observation["utilities"][seat] == observation["scores"][seat] / 100
+        assert all(abs(observation["utilities"][seat] -
+                       observation["scores"][seat] /
+                       (observation["scores"][seat] + 100)) < 1e-9
                    for seat in observation["scores"])
         assert widths == {45}
         assert decisions == (80 if variant == "default" else 48)

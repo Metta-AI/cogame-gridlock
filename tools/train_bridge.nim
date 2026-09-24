@@ -110,7 +110,8 @@ proc step(command: JsonNode): JsonNode =
     var utilities = newJObject()
     for index in 0 ..< Seats:
       scoresBySeat[$index] = scores[index]
-      utilities[$index] = %(scores[index].getFloat() / 100.0)
+      let score = scores[index].getFloat()
+      utilities[$index] = %(score / (score + 100.0))
     %*{"kind": "terminal", "scores": scoresBySeat,
       "utilities": utilities}
   else: currentDecision()

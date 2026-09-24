@@ -43,9 +43,10 @@ post-training path, not improved league play.
 and 45 numeric values drawn only from the public view. Four actions select
 the published `dispatcher` or `beeline` plan, or a dispatcher plan with 40%
 or 60% dispatch. All four seats choose against one turn state before the
-native simulator advances. Terminal scores are delivered parcels; utilities
-are each seat's score divided by 100, preserving the game's non-constant-sum
-objective. The post-training path above supports arbitrary routing-plan JSON.
+native simulator advances. Terminal scores are delivered parcels; each seat's
+utility is `score / (score + 100)` to fit the RL contract's [0, 1] range
+while preserving the game's non-constant-sum objective. The post-training
+path above supports arbitrary routing-plan JSON.
 
 ```sh
 nim c -d:release --path:src -o:/tmp/gridlock-train-bridge tools/train_bridge.nim
