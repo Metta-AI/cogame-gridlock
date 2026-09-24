@@ -61,3 +61,9 @@ Set `players=4`; both `default` and `rush` variants are supported.
 Both variants completed 512 Metta RL timesteps. At epoch ten, evaluation
 mean return was 0.645 for default and 0.595 for rush. These pilots verify
 the numeric observation and reward path; they do not establish stronger play.
+
+Native PufferLib completed 4,096 CUDA timesteps per variant on metta1.
+Checkpoint reload and held-out seeds 101 and 102 produced mean scores
+180.5/184.0 for default and 171.2/178.2 for rush. Checkpoint SHA-256 values
+were `b80a947f44ba19bfaa6ac4160f345a1b1e356ca676f7dbb7e86decf4e21a4a1c`
+and `ea92171b5870908303e9acab9fdf29c50a34d2b4a37617cd5f74e6c12d58b69d`.
