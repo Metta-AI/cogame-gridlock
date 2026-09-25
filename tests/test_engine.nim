@@ -305,17 +305,17 @@ suite "seats that misbehave":
     check effectiveScript(seats.seats[0]) == skDispatcher
     check policyKindOf(seats.seats[0]) == "scripted"
     ## Registering with neither field is the same thing.
-    seats.applyRegistration(0, %*{"type": "register", "prompt": "",
+    seats.applyRegistration(0, %*{"type": "register", "kind": "scripted",
       "scripted": newJNull()})
     check effectiveScript(seats.seats[0]) == skDispatcher
-    ## A prompt makes it an LLM seat.
-    seats.applyRegistration(1, %*{"type": "register", "prompt": "route well",
+    ## A prompt policy is a model seat without sending its prompt to the game.
+    seats.applyRegistration(1, %*{"type": "register", "kind": "prompt",
       "scripted": newJNull(), "policy": "gridlock-flowwright"})
     check effectiveScript(seats.seats[1]) == skNone
     check policyKindOf(seats.seats[1]) == "llm"
     check seats.seats[1].policyLabel == "gridlock-flowwright"
     ## And an explicit baseline name wins.
-    seats.applyRegistration(2, %*{"type": "register", "prompt": "ignored",
+    seats.applyRegistration(2, %*{"type": "register", "kind": "scripted",
       "scripted": "beeline"})
     check effectiveScript(seats.seats[2]) == skBeeline
     check policyKindOf(seats.seats[2]) == "scripted"
@@ -325,7 +325,7 @@ suite "seats that misbehave":
     ## source degrades to `dispatcher` and revives on reconnect."
     var seats = initRoster(@["a", "b", "c", "d"])
     seats.applyRegistration(0, %*{"type": "register",
-      "prompt": "keep the city moving", "policy": "gridlock-flowwright"})
+      "kind": "prompt", "policy": "gridlock-flowwright"})
     ## The upgrade handler's two assignments.
     seats.seats[0].connected = true
     seats.seats[0].everConnected = true
@@ -375,12 +375,13 @@ suite "seats that misbehave":
     check not seats.authorize(9, "t0")
     check not seats.authorize(1, "")
 
-  test "an over-long prompt is truncated on a rune boundary, never rejected":
+  test "model registration contains no prompt or model secret":
     var seats = initRoster(@["a", "b", "c", "d"])
-    var giant = ""
-    for _ in 0 ..< (MaxPromptRunes + 500):
-      giant.add("\xE2\x9C\x93")
-    seats.applyRegistration(0, %*{"type": "register", "prompt": giant})
-    check seats.seats[0].prompt.len < giant.len
+    seats.applyRegistration(0, %*{"type": "register", "kind": "jev"})
     check seats.seats[0].registered
+    check effectiveScript(seats.seats[0]) == skNone
+    check policyKindOf(seats.seats[0]) == "llm"
+    expect GridlockError:
+      seats.applyRegistration(0, %*{"type": "register", "kind": "jev",
+        "scripted": "beeline"})
     check effectiveScript(seats.seats[0]) == skNone

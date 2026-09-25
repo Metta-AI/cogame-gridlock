@@ -60,7 +60,7 @@ config_props["greenNsTicks"] = num("Ticks of north-south green at the start of e
 config_props["routeBudgetPerTick"] = num("Dijkstra runs allowed per tick.", 1, 200, 24)
 config_props["jamThreshold"] = num("Lane occupancy that raises a jam event.", 2, 64, 11)
 config_props["turnBudgetSeconds"] = num("Wall-clock ceiling for one decision turn.", 1, 120, 22, "number")
-config_props["minTurnSpacingSeconds"] = num("Floor on the wall-clock spacing between LLM batches; the hosted Bedrock sidecar caps 30 requests/minute per episode and gridlock issues four per batch.", 0, 60, 10, "number")
+config_props["minTurnSpacingSeconds"] = num("Floor between model decision turns; at most four players call the hosted sidecar per turn, against its 30 requests/minute episode cap.", 0, 60, 10, "number")
 config_props["wallClockBudgetSeconds"] = num("Engine hard stop. Must stay inside 60% of the platform episode timeout.", 30, 720, 660, "number")
 config_props["playerConnectTimeoutSeconds"] = num("How long the game waits for seats before starting; a no-show plays the dispatcher baseline.", 0, 600, 90, "number")
 config_props["episodeTimeoutSeconds"] = num("Platform kill time assumed when the environment is silent (the game container does not receive COWORLD_TIMEOUT_SECONDS).", 60, 6000, 1200)
@@ -71,9 +71,6 @@ config_props["showPlayerLabels"] = {
     "description": "Show real player names in the spectator chrome.",
     "type": "boolean", "default": True}
 config_props["gameOverTicks"] = num("Ticks the endcard holds before the process settles.", 0, 480, 96)
-config_props["maxOutputTokens"] = num("Model output cap. 400 truncates the plan object.", 64, 2000, 900)
-config_props["model"] = {"description": "Anthropic model id used when the direct API transport is in play.",
-                         "type": "string", "default": "claude-haiku-4-5"}
 
 results_props = collections.OrderedDict()
 results_props["names"] = arr("Policy display names, indexed by slot.", {"type": "string"})
@@ -108,41 +105,14 @@ results_props["final_turn"] = {"description": "Routing turn the episode stopped 
 results_props["seed"] = {"description": "The resolved episode seed.", "type": "integer"}
 
 player_protocol = (
- "gridlock.player.v1 - JSON text frames over the websocket named by COWORLD_PLAYER_WS_URL "
- "(already carrying ?slot=N&token=T). A gridlock policy is a prompt: the player container's only "
- "job is to deliver it, and the game server makes every decision by sending that prompt plus the "
- "seat's view to the model once per routing turn.\n\n"
- "player -> game, exactly once on connect:\n"
- "  {\"type\":\"register\",\"prompt\":\"<strategy text>\",\"scripted\":null|\"dispatcher\"|\"beeline\","
- "\"policy\":\"<label, <=48 runes>\"}\n"
- "  prompt is truncated at 4000 runes, never rejected, and is never written to the replay or the "
- "results. A seat that never registers, or registers with neither field, plays the dispatcher "
- "baseline; a no-show never ends the episode.\n\n"
- "game -> player:\n"
- "  {\"type\":\"welcome\",\"protocol\":\"gridlock.player.v1\",\"slot\":N,\"fleet\":\"Carbon\","
- "\"colour\":\"#e07a3f\",\"turns\":20,\"turn_seconds\":10}\n"
- "  {\"type\":\"turn\",\"turn\":7,\"tick\":1680,\"fleet\":\"Carbon\",\"view\":{...},"
- "\"plan_source\":\"llm\"} once per routing turn (informational; the seat is not required to answer)\n"
- "  {\"done\":true,\"result\":{...the results document...}} then close.\n\n"
- "The view carries: turn/of/tick/ticks_left/seconds_left; you.{fleet,colour,depot,depot_district,"
- "vans,docked,loading,waiting_dispatch,on_road_loaded,on_road_empty,stalled,delivered,"
- "delivered_last_turn,backlog,mean_trip_seconds,stalled_pct,last_plan,next_orders[<=6]}; "
- "city.{grid,districts,lane_cells,arterial_cols,arterial_rows,signal,discharge_per_green_step,"
- "jam_index,districts_heat[3 strings of 3 digits],hot_lanes[<=8, worst first]}; the PUBLIC "
- "fleets[] block of every fleet's delivered and on_road counts in fixed alias order; and "
- "events_last_turn.\n\n"
- "Hidden from a seat: the per-fleet composition of any lane's queue, every rival's plan, note, say, "
- "prompt, policy kind, destinations, backlog and trip times, individual rival van positions, the "
- "canonical destination schedule beyond its own next six orders, the seat-to-depot permutation for "
- "any other seat, the episode seed, and the future. The only names in a view are the depot aliases "
- "Carbon / Oxygen / Germanium / Silicon, re-permuted every episode.\n\n"
- "The routing plan the model returns: {\"congestion_weight\":0-100,\"patience\":0-100,"
- "\"dispatch\":0-100,\"spread\":0-100,\"corridor\":[bx,by]|null,\"avoid\":[bx,by]|null,"
- "\"priority\":\"near\"|\"far\"|\"fifo\",\"note\":\"<=140 runes\",\"say\":\"<=32 runes\"}. Parsing "
- "is tolerant (fences stripped, outermost balanced object taken, numeric strings and \"70%\" "
- "accepted, district names accepted); every field is repaired and clamped, one retry is issued, and "
- "a second failure falls back to the dispatcher plan with a fallback event. Strings are truncated on "
- "RUNE boundaries."
+ "gridlock.player.v2 - JSON text frames over COWORLD_PLAYER_WS_URL. Players register once with "
+ "kind scripted, prompt, or jev and an optional scripted baseline or policy label. No prompt or "
+ "model credential enters the game. The game sends all model seats their private view in a "
+ "decision frame with id, turn, attempt, and timeout_ms. The player replies with the same id and "
+ "a complete ordinary routing plan, or an explicit fallback cause. The game owns two shared "
+ "deadlines (14 seconds then 6 seconds), plan repair, scripted fallback, results, and replay. "
+ "A no-show plays dispatcher. An informational turn frame follows each resolved turn; done and "
+ "the results document close the episode. See docs/PROTOCOL.md for the full view and plan schema."
 )
 
 global_protocol = (
@@ -184,13 +154,12 @@ manifest["game"] = collections.OrderedDict([
      "routing fifty vans; a fleet scores one point per parcel its OWN vans deliver. Intersections "
      "have hard capacity and lanes spill back into the intersections behind them, so the fastest, "
      "greediest routing plan is the one that builds the jam everybody - including its author - then "
-     "sits in. Nobody controls the lights. A policy is just a prompt."),
+     "sits in. Nobody controls the lights. Players choose a routing plan from private views."),
     ("owner", "daveey@softmax.com"),
     ("runnable", collections.OrderedDict([
         ("type", "game"),
         ("image", "{{GRIDLOCK_IMAGE}}"),
         ("run", ["/bin/gridlock"]),
-        ("env", {"ANTHROPIC_API_KEY_URI": "secret://coworld/gridlock/anthropic_api_key"}),
         ("source_url", SRC)])),
     ("config_schema", collections.OrderedDict([
         ("$schema", "https://json-schema.org/draft/2020-12/schema"),
@@ -222,15 +191,25 @@ manifest["player"] = [collections.OrderedDict([
     ("name", "dispatcher"),
     ("description",
      "Congestion-aware shortest-path dispatcher with jam-triggered fleet metering. The bundled "
-     "certification player: it registers its seat as scripted, so the game server plays it "
-     "deterministically with no LLM in the loop. Field your own policy by uploading this same image "
-     "with a PLAYER_PROMPT instead."),
+     "certification player: it registers as scripted and the game plays it deterministically."),
     ("image", "{{GRIDLOCK_IMAGE}}"),
     ("run", ["/bin/gridlock-player"]),
     ("env", {"PLAYER_SCRIPTED": "dispatcher"}),
     ("resources", {"requests": {"cpu": "100m", "memory": "64Mi"},
                    "limits": {"cpu": "1"}}),
-    ("source_url", SRC)])]
+    ("source_url", SRC)]),
+    collections.OrderedDict([
+        ("id", "jev"), ("type", "player"), ("name", "Jev"),
+        ("description", "Jev ranks independent fields of the ordinary private routing plan."),
+        ("image", "{{GRIDLOCK_IMAGE}}"), ("run", ["/bin/gridlock-player"]),
+        ("env", {"PLAYER_POLICY_KIND": "jev"}),
+        ("source_url", SRC)]),
+    collections.OrderedDict([
+        ("id", "prompt"), ("type", "player"), ("name", "prompt dispatcher"),
+        ("description", "Claude prompt policy over the same private view and plan action."),
+        ("image", "{{GRIDLOCK_IMAGE}}"), ("run", ["/bin/gridlock-player"]),
+        ("env", {"PLAYER_PROMPT": "Keep the city moving. Meter vans when queues grow."}),
+        ("source_url", SRC)])]
 
 manifest["variants"] = [
     collections.OrderedDict([
@@ -280,7 +259,8 @@ manifest["certification"] = collections.OrderedDict([
         ("wallClockBudgetSeconds", 180),
         ("playerConnectTimeoutSeconds", 60),
         ("cityPath", "gridcity")])),
-    ("players", [{"player_id": "baseline"} for _ in range(4)]),
+    ("players", [{"player_id": "jev"}, {"player_id": "prompt"},
+                 {"player_id": "baseline"}, {"player_id": "baseline"}]),
 ])
 
 with open("coworld_manifest_template.json", "w") as fh:

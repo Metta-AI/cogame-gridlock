@@ -15,7 +15,7 @@ they plan a route, how **patient** they are about re-planning, which district th
 shun**, which parcel they **take next**, and — the commons lever — **how many of its fifty vans it
 puts on the road at all**.
 
-A policy is just a prompt.
+A player policy receives its private fleet view and returns a routing plan.
 
 ## The numbers
 
@@ -62,13 +62,16 @@ One image, two entrypoints, and the seat kind is chosen by env on the **player**
 
 | env | seat |
 |---|---|
-| `PLAYER_PROMPT=<strategy text>` | an LLM seat; the game server sends this text plus the seat's view to Claude once per turn |
+| `PLAYER_PROMPT=<strategy text>` | a prompt player; it calls Claude from the player container once per turn |
+| `PLAYER_POLICY_KIND=jev` | a Jev player; it ranks the plan fields from the same private view |
 | `PLAYER_SCRIPTED=dispatcher` | congestion-aware shortest path with jam-triggered metering (the strong baseline, and the certification player) |
 | `PLAYER_SCRIPTED=beeline` | pure greedy shortest path at full throttle (the weak baseline, and the villain of the idea) |
 
-Neither set ⇒ `dispatcher`. All four decision paths live in the **game server**, so the recorded
-plan stream is reproducible with no network in the loop, and an episode with no credentials at all
-still completes — on the scripted layer, in seconds.
+With no policy environment variable, the seat plays `dispatcher`. The game sends each model player
+a private decision, validates and repairs its plan, and records the resolved stream. Missing credentials produce
+an explicit fallback to `dispatcher`, so offline certification still completes.
+Prompt players read `ANTHROPIC_API_KEY` or the Bedrock sidecar. Jev players read
+`TYPESAFE_API_KEY` or the player sidecar. These credentials belong to the player container.
 
 ## Watching it
 

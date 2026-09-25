@@ -43,12 +43,11 @@ suite "packaging":
     check manifest["game"]["replay_viewer"]["bundle"].getStr() ==
       "static-replay-viewer"
 
-  test "the runnable is a game and carries the secret URI":
+  test "the runnable is a game without a model credential":
     let runnable = manifest["game"]["runnable"]
     check runnable["type"].getStr() == "game"
     check runnable["run"][0].getStr() == "/bin/gridlock"
-    check runnable["env"]["ANTHROPIC_API_KEY_URI"].getStr() ==
-      "secret://coworld/gridlock/anthropic_api_key"
+    check not runnable.hasKey("env")
     check runnable["source_url"].getStr().contains("cogame-gridlock")
 
   test "the image placeholder matches the compose service name":
@@ -155,10 +154,11 @@ suite "docs and protocols":
       check page["content"]["value"].getStr() == readSource(path)
 
 suite "policies":
-  test "two LLM champions and two scripted fillers, one image, env-switched":
+  test "two prompt, one Jev, and two scripted players share one image":
     let policies = parseJson(readSource("tools/ci/policies.json"))
-    check policies.len == 4
+    check policies.len == 5
     var prompts = 0
+    var jev = 0
     var scripted = 0
     var owned = 0
     var names = initHashSet[string]()
@@ -174,11 +174,14 @@ suite "policies":
         inc scripted
         check parseScriptKind(policy["env"]["PLAYER_SCRIPTED"].getStr()) !=
           skNone
+      if policy["env"]{"PLAYER_POLICY_KIND"}.getStr() == "jev":
+        inc jev
       if policy.hasKey("player"):
         inc owned
         check policy["player"].getStr() ==
           "ply_bac48eb1-662e-44f8-973d-f3e016dccf5d"
     check prompts == 2
+    check jev == 1
     check scripted == 2
     check owned == 1
 

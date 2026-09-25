@@ -29,8 +29,8 @@ The game reads the Coworld runtime contract from the environment:
   COGAME_HOST / COGAME_PORT listen address
 
 Players connect to ws://<host>:<port>/player?slot=N&token=T and send one
-{"type":"register","prompt":…,"scripted":…} frame. Decisions are made in the
-game server; see docs/PROTOCOL.md.
+{"type":"register","kind":…,"scripted":…} frame. Model players answer
+private decisions with routing plans; see docs/PROTOCOL.md.
 """
 
 proc requireFileUri(name: string) =

@@ -12,8 +12,8 @@ here unless the design note says otherwise.
 - `src/gridlock.nim` — entrypoint. **Seed randomisation happens HERE, before
   `config.update`**, so every seed-derived draw (the seat→depot permutation
   and the canonical destination schedule) follows the FINAL seed.
-- `src/gridlock_player.nim` — the thin player: one `register` frame, then it
-  only receives. It decides nothing.
+- `src/gridlock_player.nim` — registers a scripted, prompt, or Jev policy and
+  answers private `decision` frames with ordinary complete routing plans.
 - `src/gridlock/`
   - `types.nim` — consts, `GameVersion` (the replay-compatibility gate), every
     record the step loop touches (including `Sim`), PCG32, and the rune-safe
@@ -32,8 +32,9 @@ here unless the design note says otherwise.
   - `baselines.nim` — `dispatcher` and `beeline`.
   - `view.nim` — the per-seat observation. What is hidden is a rule, not an
     optimisation; `tests/test_view.nim` enforces it.
-  - `llm.nim` — the batch client. Gridlock is a SIMULTANEOUS-decision game:
-    all four seats go out as ONE `curly.makeRequests` batch per turn.
+  - `decision.nim` — game-owned simultaneous private decision exchange,
+    validation, shared deadlines, and fallback.
+  - `llm.nim`, `jev_policy.nim` — player-side model calls and ranking.
   - `sim.nim` — the step loop and the re-exports; `import gridlock/sim` sees
     everything.
   - `replay.nim`, `render.nim`, `server.nim`, `roster.nim`, `state.nim`,

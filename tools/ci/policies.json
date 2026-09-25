@@ -15,6 +15,13 @@
     "player": "ply_bac48eb1-662e-44f8-973d-f3e016dccf5d"
   },
   {
+    "name": "gridlock-jev",
+    "run": "/bin/gridlock-player",
+    "env": {
+      "PLAYER_POLICY_KIND": "jev"
+    }
+  },
+  {
     "name": "gridlock-dispatcher",
     "run": "/bin/gridlock-player",
     "env": {

@@ -1,6 +1,5 @@
-## Claude-backed decision making for gridlock. A policy is just a prompt: the
-## game server composes the seat's view plus that seat's PLAYER_PROMPT and
-## asks the model for one ROUTING PLAN.
+## Claude-backed player policy. The game sends a private view and receives an
+## ordinary routing plan; only this player-side module calls the model.
 ##
 ## Gridlock is a SIMULTANEOUS-decision game, so all four seats' calls go out
 ## as ONE parallel batch per turn (`curly.makeRequests`) — never sequentially.
@@ -365,3 +364,19 @@ proc decideAll*(client: LlmClient, seats: array[Seats, SeatRequest]):
     result.plans[seat] = dispatcherPlan(seats[seat].baseline)
     result.plans[seat].source = psFallback
     result.plans[seat].latencyMs = spentMs
+
+proc choosePromptPlan*(client: LlmClient, prompt: string, viewJson: string,
+    retryHint: bool, timeoutSeconds: int): JsonNode =
+  ## One player seat makes one model call per game request. The game repairs
+  ## the returned plan against the actual previous plan and owns retry timing.
+  let request = SeatRequest(prompt: prompt, viewJson: viewJson)
+  let built = client.requestFor(SystemPrompt,
+    userMessage(request, retryHint))
+  let replies = client.runBatch(@[LlmRequest(seat: 0, url: built.url,
+    body: built.body)], timeoutSeconds)
+  if replies.len != 1 or replies[0].error.len > 0:
+    raise newException(GridlockError,
+      if replies.len == 1: replies[0].error else: "no prompt reply")
+  result = extractJsonObject(replies[0].text)
+  if not hasAnyPlanKey(result):
+    raise newException(GridlockError, "reply carried no plan keys")

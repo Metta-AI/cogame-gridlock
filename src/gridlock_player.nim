@@ -1,16 +1,13 @@
-## Gridlock player: a policy is just a prompt.
-##
-## Connects to the game, sends ONE register frame carrying its strategy text
-## (or its scripted baseline name), then only receives until the final frame.
-## Every decision is made in the game server, which sends this seat's prompt
-## to the model once every routing turn.
+## Gridlock player: scripted, prompt, or Jev policy over one private view and
+## the ordinary complete routing-plan action.
 ##
 ## To field your own policy, reuse this image and set PLAYER_PROMPT:
 ##   coworld upload-policy <gridlock-image> --name my-gridlock \
 ##     --run /bin/gridlock-player --secret-env PLAYER_PROMPT="<your strategy>"
 
-import std/[json, options, os, strutils]
+import std/[json, options, os, strutils, unicode]
 import whisky
+import gridlock/[types, llm, jev_policy]
 
 const
   ConnectAttempts = 40
@@ -20,27 +17,36 @@ when isMainModule:
   let url = strutils.strip(getEnv("COWORLD_PLAYER_WS_URL"))
   if url.len == 0:
     quit("COWORLD_PLAYER_WS_URL is not set", 1)
-  let prompt = getEnv("PLAYER_PROMPT")
-  ## A seat that sets NEITHER variable defaults to PLAYER_SCRIPTED=dispatcher
-  ## (README, docs/PROTOCOL.md, and the note twice). Substituting a prompt
-  ## here would make such a seat an LLM seat and spend model calls on a
-  ## policy nobody asked for.
+  let rawPrompt = getEnv("PLAYER_PROMPT")
+  let prompt =
+    if rawPrompt.runeLen > 4000: rawPrompt.runeSubStr(0, 4000)
+    else: rawPrompt
+  let kind =
+    if getEnv("PLAYER_POLICY_KIND").strip() == "jev": "jev"
+    elif prompt.strip().len > 0: "prompt"
+    else: "scripted"
   let scripted =
     if strutils.strip(getEnv("PLAYER_SCRIPTED")).len > 0:
       strutils.strip(getEnv("PLAYER_SCRIPTED"))
-    elif strutils.strip(prompt).len == 0:
+    elif kind == "scripted":
       "dispatcher"
     else:
       ""
   let label = strutils.strip(getEnv("PLAYER_POLICY_LABEL"))
+  let client =
+    if kind == "prompt":
+      newLlmClient(parseInt(getEnv("PLAYER_MAX_OUTPUT_TOKENS", "900")),
+        getEnv("PLAYER_MODEL", "claude-haiku-4-5"))
+    else:
+      nil
 
   let frame = $ %*{
     "type": "register",
-    "prompt": prompt,
+    "kind": kind,
     "scripted": (if scripted.len > 0: %scripted else: newJNull()),
     "policy": (if label.len > 0: label
                elif scripted.len > 0: "scripted:" & scripted
-               else: "prompt")}
+               else: kind)}
 
   ## Bounded connect retry: the game container and the player containers are
   ## started together, so the first few dials legitimately fail.
@@ -62,8 +68,8 @@ when isMainModule:
 
   try:
     socket.send(frame)
-    echo "gridlock player: registered (", prompt.len, " prompt chars",
-      (if scripted.len > 0: ", scripted " & scripted else: ""), ")"
+    echo "gridlock player: registered ", kind,
+      (if scripted.len > 0: ", scripted " & scripted else: "")
   except CatchableError as error:
     echo "gridlock player: register failed (", error.msg, "); exiting cleanly"
     quit(0)
@@ -96,6 +102,37 @@ when isMainModule:
             " as ", payload{"fleet"}.getStr()
         of "turn":
           discard
+        of "decision":
+          if kind == "scripted":
+            continue
+          if payload["protocol"].getStr() != PlayerProtocol:
+            raise newException(GridlockError,
+              "unexpected player protocol")
+          var reply = %*{
+            "type": "action",
+            "protocol": PlayerProtocol,
+            "id": payload["id"],
+            "source": "llm"
+          }
+          let timeoutSeconds = max(1,
+            payload["timeout_ms"].getInt() div 1000 - 1)
+          if (kind == "prompt" and client.disabled) or
+              (kind == "jev" and not jevConfigured()):
+            reply["source"] = %"fallback"
+            reply["cause"] = %"no_credentials"
+          else:
+            try:
+              reply["plan"] =
+                if kind == "jev":
+                  chooseJevPlan(payload, timeoutSeconds)
+                else:
+                  choosePromptPlan(client, prompt, $payload["view"],
+                    payload["attempt"].getInt() > 1, timeoutSeconds)
+            except CatchableError as error:
+              echo "gridlock player: policy call failed: ", error.msg
+              reply["source"] = %"fallback"
+              reply["cause"] = %"transport_error"
+          socket.send($reply)
         else:
           discard
       except CatchableError as error:
