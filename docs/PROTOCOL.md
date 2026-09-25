@@ -3,39 +3,52 @@
 Two surfaces: the **player** websocket (one per seat) and the **global** spectator stream plus the
 static replay bundle. Everything is UTF-8 JSON text.
 
-## Player — `gridlock.player.v1`
+## Player — `gridlock.player.v2`
 
 Connect to `ws://<host>:<port>/player?slot=N&token=T`. A bad slot or token is **403**; a second
 connection to a seat that already holds one is **409**.
 
-### Register (the only frame a policy container must send)
+### Register
 
 ```json
-{"type": "register",
- "prompt": "<strategy text or empty>",
+{"type": "register", "kind": "scripted" | "prompt" | "jev",
  "scripted": "dispatcher" | "beeline" | null,
  "policy": "<free label, <= 48 runes>"}
 ```
 
-`prompt` is truncated (never rejected) at 4000 runes and is never written to the replay or the
-results. A seat that never registers, or registers with neither field, plays `dispatcher`.
+A missing registration plays `dispatcher`. A scripted player names its baseline. A prompt or Jev
+player does not send a prompt or credential to the game. Reconnecting restores its policy.
 
 ### Welcome
 
 ```json
-{"type": "welcome", "protocol": "gridlock.player.v1", "slot": 0,
+{"type": "welcome", "protocol": "gridlock.player.v2", "slot": 0,
  "fleet": "Carbon", "colour": "#e07a3f", "turns": 20, "turn_seconds": 10}
 ```
 
-### Turn (informational — the seat is not required to answer)
+### Private decision and ordinary action
 
-Decisions are made in the game server, which composes this seat's prompt plus this view and asks the
-model for one routing plan.
+At each routing turn the game sends all model seats their private views before the shared 14-second
+first deadline. It retries invalid or missing actions once under a six-second deadline. The game
+repairs accepted plans against the previous plan and records the resolved result. The player sends
+one complete routing plan in the normal action envelope, or an explicit fallback cause.
 
 ```json
-{"type": "turn", "turn": 7, "tick": 1680, "fleet": "Carbon",
- "view": { … }, "plan_source": "llm"}
+{"type": "decision", "protocol": "gridlock.player.v2", "id": 71,
+ "slot": 0, "turn": 7, "attempt": 1, "timeout_ms": 14000,
+ "view": { … the private view below … }}
 ```
+
+```json
+{"type": "action", "protocol": "gridlock.player.v2", "id": 71,
+ "source": "llm", "plan": { … the routing plan below … }}
+```
+
+A player without credentials returns `{"source":"fallback","cause":"no_credentials"}`
+in the same envelope. The game plays `dispatcher` and records the fallback. An invalid envelope,
+plan, or timed-out player also falls back after the retry. The game sends an informational `turn`
+frame after each resolved turn, then `{"done":true,"result":{…}}` before writing replay and
+results artifacts.
 
 ### The per-seat view
 

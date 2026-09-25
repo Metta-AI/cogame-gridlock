@@ -52,10 +52,9 @@ const
   MaxErrorBodyRunes* = 400
     ## How much of a raw model reply is quoted back in a parse error. That
     ## message becomes `fallback.detail`, so the cut is on runes.
-  MaxPromptRunes* = 4000
 
   ReplayProtocol* = "gridlock.replay.v1"
-  PlayerProtocol* = "gridlock.player.v1"
+  PlayerProtocol* = "gridlock.player.v2"
   ReplayFormatVersion* = 1
 
   FleetAliases*: array[Seats, string] =
@@ -102,8 +101,6 @@ type
     cityPath*: string
     showPlayerLabels*: bool
     gameOverTicks*: int
-    maxOutputTokens*: int
-    model*: string
 
   Priority* = enum
     prNear = "near"

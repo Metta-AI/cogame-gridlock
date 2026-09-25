@@ -85,24 +85,23 @@ suite "the player entrypoint":
     check tail.contains("exiting cleanly")
     check player.strip().endsWith("quit(0)")
 
-  test "it sends exactly one register frame and then only receives":
+  test "it registers and returns ordinary plans for private decisions":
     check player.contains("\"type\": \"register\"")
     check player.contains("PLAYER_PROMPT")
     check player.contains("PLAYER_SCRIPTED")
     check player.contains("PLAYER_POLICY_LABEL")
     check player.contains("COWORLD_PLAYER_WS_URL")
-    ## Exactly one send, and it is on connect — the note's "sends exactly one
-    ## text frame". Everything after it is a receive.
-    check player.count("socket.send(") == 1
+    check player.contains("PLAYER_POLICY_KIND")
+    check player.count("socket.send(") == 2
     let sendIndex = player.find("socket.send(frame)")
     check sendIndex > 0
     check player.find("while true:") > sendIndex
-    ## It never decides anything: no plan is built player-side. Setting
-    ## neither variable registers `scripted: "dispatcher"` — the server
-    ## picks the plan, the player never invents one.
+    check player.contains("chooseJevPlan")
+    check player.contains("choosePromptPlan")
+    check player.contains("socket.send($reply)")
+    ## The game still chooses plans for scripted seats.
     check not player.contains("dispatcherPlan")
     check not player.contains("RoutingPlan")
-    check not player.contains("import gridlock/")
 
   test "a seat that sets neither variable registers as dispatcher":
     ## README, docs/PROTOCOL.md and the design note all say so; substituting

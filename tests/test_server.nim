@@ -91,10 +91,10 @@ suite "auth and registration":
   test "the register frame is accepted and its fields are applied":
     var seats = initRoster(@["t0", "t1", "t2", "t3"])
     seats.applyRegistration(1, %*{
-      "type": "register", "prompt": "route around the arterial cross",
+      "type": "register", "kind": "prompt",
       "scripted": newJNull(), "policy": "gridlock-backstreet"})
     check seats.seats[1].registered
-    check seats.seats[1].prompt.contains("arterial")
+    check seats.seats[1].kind == pkPrompt
     check seats.seats[1].policyLabel == "gridlock-backstreet"
     check policyKindOf(seats.seats[1]) == "llm"
 

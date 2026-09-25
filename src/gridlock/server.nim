@@ -11,19 +11,19 @@
 ##   WS  /player?slot=N&token=T        player protocol
 ##   WS  /global                       spectator snapshots
 ##
-## Player protocol (gridlock.player.v1), JSON text frames:
-##   player -> game: {"type":"register","prompt":…,"scripted":…,"policy":…}
+## Player protocol (gridlock.player.v2), JSON text frames:
+##   player -> game: {"type":"register","kind":…,"scripted":…,"policy":…}
 ##   game -> player: {"type":"welcome",…}
+##                   {"type":"decision","id":N,"view":{…},…}
+##   player -> game: {"type":"action","id":N,"plan":{…},…}
 ##                   {"type":"turn","turn":N,"tick":T,"fleet":"Carbon",
 ##                    "view":{…},"plan_source":"llm"}
 ##                   {"done":true,"result":{…}}
 ##
-## Decisions are made HERE, not in the player container: the hosted Bedrock
-## credentials are injected into the game pod, phase 60 greps the GAME log for
-## `falling back`, and "one parallel batch per turn" is a game-server
-## property. The player container is therefore thin.
+## The game owns shared deadlines, validation, fallback, and replay. Model
+## calls and candidate ranking run only in the player container.
 
-import std/[json, locks, os, sets, strutils, tables, times]
+import std/[json, locks, monotimes, os, sets, strutils, tables, times]
 import bitworld/runtime
 import mummy
 import mummy/routers
@@ -36,7 +36,7 @@ import state
 import view
 import baselines
 import roster
-import llm
+import decision
 import startup
 import wire_constants
 import render
@@ -58,6 +58,7 @@ type
     seats: Roster
     playerSockets: Table[int, WebSocket]
     socketSlots: Table[WebSocket, int]
+    actionReplies: Table[int, string]
     globalSockets: HashSet[WebSocket]
     started: bool
     finished: bool
@@ -127,16 +128,15 @@ proc declarePlayerFailure*(slot: int, message: string) =
   except CatchableError as error:
     logLine("player-failure declaration failed: ", error.msg)
 
-proc seatRequestsLocked(gs: GameState): array[Seats, SeatRequest] =
+proc seatRequestsLocked(gs: GameState): array[Seats, SeatSnapshot] =
   for slot in 0 ..< Seats:
-    result[slot] = SeatRequest(
-      prompt: gs.seats.seats[slot].prompt,
-      viewJson: $buildView(gs.game, slot),
+    result[slot] = SeatSnapshot(
+      view: buildView(gs.game, slot),
       baseline: baselineInput(gs.game, slot),
       scripted: effectiveScriptNow(gs.seats.seats[slot]),
       previous: gs.game.plans[slot])
 
-proc applyDecision(gs: var GameState, decision: TurnDecision, turn: int) =
+proc applyDecision(gs: var GameState, decision: PlayerDecision, turn: int) =
   ## `turn` is the turn these plans are FOR. `sim.turn` still holds the
   ## previous turn's index here: it is only assigned in `installPlans`, which
   ## `runTurn` calls after this, so reading it would date every fallback one
@@ -151,6 +151,44 @@ proc applyDecision(gs: var GameState, decision: TurnDecision, turn: int) =
   for slot in 0 ..< Seats:
     if decision.plans[slot].source == psFallback:
       inc gs.game.fallbackTurns[slot]
+
+proc exchangeDecisions(requests: seq[JsonNode], timeoutMs: int):
+    seq[string] {.gcsafe.} =
+  ## Broadcast all private views before waiting on the shared deadline.
+  result = newSeq[string](requests.len)
+  var sockets = newSeq[WebSocket](requests.len)
+  var connected = newSeq[bool](requests.len)
+  {.gcsafe.}:
+    withLock stateLock:
+      for position, request in requests:
+        let slot = request["slot"].getInt()
+        if appState.playerSockets.hasKey(slot):
+          sockets[position] = appState.playerSockets[slot]
+          connected[position] = true
+          appState.actionReplies.del(slot)
+    for position, socket in sockets:
+      if connected[position]:
+        socket.send($requests[position])
+    let deadline = getMonoTime() + initDuration(milliseconds = timeoutMs)
+    while getMonoTime() < deadline:
+      var pending = false
+      withLock stateLock:
+        for position, request in requests:
+          if not connected[position] or result[position].len > 0:
+            continue
+          let slot = request["slot"].getInt()
+          if appState.actionReplies.hasKey(slot):
+            let raw = appState.actionReplies[slot]
+            appState.actionReplies.del(slot)
+            if parseJson(raw){"id"}.getInt() == request["id"].getInt():
+              result[position] = raw
+            else:
+              pending = true
+          else:
+            pending = true
+      if not pending:
+        break
+      sleep(10)
 
 proc finishEpisode(runtimeConfig: RuntimeConfig) {.gcsafe.} =
   {.gcsafe.}:
@@ -194,10 +232,13 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
     let gameStart = epochTime()
     let connectDeadline = gameStart + cfg.playerConnectTimeoutSeconds
     while epochTime() < connectDeadline:
-      var connected = 0
+      var ready = 0
       withLock stateLock:
-        connected = appState.playerSockets.len
-      if connected >= Seats:
+        for slot in 0 ..< Seats:
+          if appState.playerSockets.hasKey(slot) and
+              appState.seats.seats[slot].registered:
+            inc ready
+      if ready >= Seats:
         break
       sleep(200)
 
@@ -216,8 +257,6 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
         "seat " & $missing & " never connected; it plays the dispatcher " &
         "baseline and the match continues")
 
-    let client = newLlmClient(cfg.maxOutputTokens, cfg.model)
-    client.turnBudgetSeconds = cfg.turnBudgetSeconds
     var guarded = false
     let turns = turnsPerEpisode(cfg)
 
@@ -235,7 +274,6 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
       if not guarded and budgetGuardEngaged(elapsed, cfg.turnBudgetSeconds,
           cfg.wallClockBudgetSeconds):
         guarded = true
-        client.disabled = true
         withLock stateLock:
           appState.game.events.add(newEvent(seBudgetGuard, appState.game.tick,
             turn, %*{"remaining_s": cfg.wallClockBudgetSeconds - elapsed}))
@@ -244,7 +282,7 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
         logLine("budget guard engaged at turn ", turn, " (",
           int(elapsed), "s elapsed)")
 
-      var requests: array[Seats, SeatRequest]
+      var requests: array[Seats, SeatSnapshot]
       withLock stateLock:
         requests = seatRequestsLocked(appState)
       var wantedLlm = false
@@ -252,10 +290,10 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
         if requests[slot].scripted == skNone:
           wantedLlm = true
 
-      ## The slow part — ONE parallel batch over every open seat — runs
-      ## outside the lock; only this thread mutates the sim, so the snapshot
-      ## cannot go stale.
-      let decision = client.decideAll(requests)
+      ## The slow part runs outside the lock. Every model seat receives the
+      ## same pre-action snapshot before the shared deadline starts.
+      let decision = decidePlayers(requests, turn, guarded,
+        cfg.turnBudgetSeconds, exchangeDecisions)
 
       var failure = ""
       withLock stateLock:
@@ -277,11 +315,9 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
           endEpisode(appState.game, "deadline", "wall_clock")
         break
 
-      ## Sidecar rate floor: 4 requests per batch against a 30 req/min cap
-      ## means batches must start at least 8 s apart; gridlock floors the
-      ## spacing at minTurnSpacingSeconds.
-      if wantedLlm and not client.disabled and
-          cfg.minTurnSpacingSeconds > 0.0:
+      ## Sidecar rate floor: up to four player calls per turn against a
+      ## 30 req/min cap. Keep turns at least minTurnSpacingSeconds apart.
+      if wantedLlm and not guarded and cfg.minTurnSpacingSeconds > 0.0:
         let rest = spacingRemaining(epochTime() - turnStart,
           cfg.minTurnSpacingSeconds)
         if rest > 0.0:
@@ -437,12 +473,18 @@ proc websocketHandler(websocket: WebSocket, event: WebSocketEvent,
         return
       try:
         let payload = parseJson(message.data)
-        withLock stateLock:
-          appState.seats.applyRegistration(slot, payload)
-          appState.game.policyKinds[slot] =
-            policyKindOf(appState.seats.seats[slot])
-          logLine("slot ", slot, " registered (",
-            appState.game.policyKinds[slot], ")")
+        if payload{"type"}.getStr() == "register":
+          withLock stateLock:
+            appState.seats.applyRegistration(slot, payload)
+            appState.game.policyKinds[slot] =
+              policyKindOf(appState.seats.seats[slot])
+            logLine("slot ", slot, " registered (",
+              appState.game.policyKinds[slot], ")")
+        elif payload{"type"}.getStr() == "action":
+          let actionId = payload{"id"}
+          if not actionId.isNil and actionId.kind == JInt:
+            withLock stateLock:
+              appState.actionReplies[slot] = message.data
       except CatchableError as error:
         logLine("ignoring bad player frame: ", error.msg)
     of ErrorEvent:
@@ -453,6 +495,7 @@ proc websocketHandler(websocket: WebSocket, event: WebSocketEvent,
           let slot = appState.socketSlots[websocket]
           appState.socketSlots.del(websocket)
           appState.seats.seats[slot].connected = false
+          appState.actionReplies.del(slot)
           if appState.playerSockets.getOrDefault(slot) == websocket:
             appState.playerSockets.del(slot)
         appState.globalSockets.excl(websocket)
@@ -481,6 +524,7 @@ proc runReplayServer*(runtimeConfig: RuntimeConfig) =
   appState.config = data.config
   appState.game = player.sim
   appState.seats = initRoster(@[])
+  appState.actionReplies = initTable[int, string]()
   let router = buildRouter(replayMode = true)
   gameServer = newServer(router, websocketHandler)
   logLine("replay mode on ", runtimeConfig.host, ":", runtimeConfig.port)
@@ -495,6 +539,7 @@ proc runGameServer*(gameConfig: GameConfig, spec: CitySpec,
   appState.game = initSim(gameConfig, spec)
   appState.game.keepSnapshots = false
   appState.seats = initRoster(gameConfig.tokens)
+  appState.actionReplies = initTable[int, string]()
   ## Bake before listening so a viewer's first frame is instant.
   appState.metaPayload = $metaJson(appState.game, newJObject())
   appState.refreshPayloadsLocked()

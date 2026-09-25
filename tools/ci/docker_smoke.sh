@@ -190,14 +190,6 @@ chmod 777 "${work_dir}"
 # --------------------------------------------------------------------------
 docker network create "${network}" >/dev/null
 
-game_env=()
-if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-  game_env+=(-e "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}")
-  echo "ANTHROPIC_API_KEY present: the LLM path will be exercised"
-else
-  echo "no ANTHROPIC_API_KEY: the game must complete on its scripted baselines"
-fi
-
 echo "starting game container (${image} ${game_bin}) ..."
 docker run -d --name "${prefix}-game" \
   --network "${network}" --network-alias "${prefix}-game" \
@@ -207,13 +199,15 @@ docker run -d --name "${prefix}-game" \
   -e COGAME_RESULTS_URI=file:///coworld/results.json \
   -e COGAME_SAVE_REPLAY_URI=file:///coworld/replay.json \
   -e COGAME_PLAYER_FAILURE_URI=file:///coworld/player_failure.json \
-  ${game_env[@]+"${game_env[@]}"} \
   -v "${work_dir}:/coworld:rw" \
   "${image}" "${game_bin}" >/dev/null
 
 for ((slot = 0; slot < seats; slot++)); do
   eval "penv=( $(cat "${work_dir}/env-${slot}.args") )"
   eval "pcmd=( $(cat "${work_dir}/cmd-${slot}.args") )"
+  if [ "${slot}" -eq 1 ] && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    penv+=(-e "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}")
+  fi
   docker run -d --name "${prefix}-p${slot}" --network "${network}" \
     -e COWORLD_PLAYER_WS_URL="ws://${prefix}-game:${port}/player?slot=${slot}&token=token-${slot}" \
     ${penv[@]+"${penv[@]}"} \

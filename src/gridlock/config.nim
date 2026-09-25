@@ -35,9 +35,7 @@ proc defaultGameConfig*(): GameConfig =
     episodeTimeoutSeconds: 1200,
     cityPath: "gridcity",
     showPlayerLabels: true,
-    gameOverTicks: 96,
-    maxOutputTokens: 900,
-    model: "claude-haiku-4-5")
+    gameOverTicks: 96)
 
 proc getNum(node: JsonNode, key: string, fallback: float): float =
   let field = node{key}
@@ -119,10 +117,6 @@ proc update*(config: var GameConfig, configJson: string) =
       node["showPlayerLabels"].getBool(config.showPlayerLabels)
   config.gameOverTicks =
     int(getNum(node, "gameOverTicks", float(config.gameOverTicks)))
-  config.maxOutputTokens =
-    int(getNum(node, "maxOutputTokens", float(config.maxOutputTokens)))
-  if node.hasKey("model"):
-    config.model = node["model"].getStr(config.model)
 
 proc validate*(config: GameConfig) =
   if config.numAgents != Seats:
