@@ -12,7 +12,7 @@ here unless the design note says otherwise.
 - `src/gridlock.nim` — entrypoint. **Seed randomisation happens HERE, before
   `config.update`**, so every seed-derived draw (the seat→depot permutation
   and the canonical destination schedule) follows the FINAL seed.
-- `src/gridlock_player.nim` — registers a scripted, prompt, or Jev policy and
+- `src/gridlock_player.nim` — registers a scripted or prompt policy and
   answers private `decision` frames with ordinary complete routing plans.
 - `src/gridlock/`
   - `types.nim` — consts, `GameVersion` (the replay-compatibility gate), every
@@ -34,7 +34,7 @@ here unless the design note says otherwise.
     optimisation; `tests/test_view.nim` enforces it.
   - `decision.nim` — game-owned simultaneous private decision exchange,
     validation, shared deadlines, and fallback.
-  - `llm.nim`, `jev_policy.nim` — player-side model calls and ranking.
+  - `llm.nim` — player-side prompt model calls.
   - `sim.nim` — the step loop and the re-exports; `import gridlock/sim` sees
     everything.
   - `replay.nim`, `render.nim`, `server.nim`, `roster.nim`, `state.nim`,
