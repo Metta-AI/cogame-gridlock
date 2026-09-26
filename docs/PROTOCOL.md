@@ -11,12 +11,12 @@ connection to a seat that already holds one is **409**.
 ### Register
 
 ```json
-{"type": "register", "kind": "scripted" | "prompt" | "jev",
+{"type": "register", "kind": "scripted" | "prompt" | "external",
  "scripted": "dispatcher" | "beeline" | null,
  "policy": "<free label, <= 48 runes>"}
 ```
 
-A missing registration plays `dispatcher`. A scripted player names its baseline. A prompt or Jev
+A missing registration plays `dispatcher`. A scripted player names its baseline. A prompt or external
 player does not send a prompt or credential to the game. Reconnecting restores its policy.
 
 ### Welcome
