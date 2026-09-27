@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run mixed Gridlock players against local Jev and Claude-shaped model stubs."""
+"""Run mixed Gridlock players against a local Claude-shaped model stub."""
 
 import http.server
 import json
@@ -24,22 +24,7 @@ class ModelHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         data = self.rfile.read(int(self.headers["Content-Length"]))
         request = json.loads(data)
-        if self.path == "/v1/systemone":
-            answers = {}
-            for name, question in request["questions"].items():
-                choices = list(question["criteria"])
-                chosen = "30" if name == "dispatch" else choices[0]
-                answers[name] = {
-                    "type": "choice",
-                    "probabilities": {
-                        choice: float(choice == chosen) for choice in choices
-                    },
-                }
-            body = {"answers": answers}
-            self.calls.append(
-                ("jev", self.headers.get("x-coworld-player-slot"), request)
-            )
-        elif self.path.startswith("/model/") and self.path.endswith("/invoke"):
+        if self.path.startswith("/model/") and self.path.endswith("/invoke"):
             body = {
                 "content": [
                     {
@@ -101,7 +86,6 @@ def main(game_bin, player_bin):
         for name in (
             "ANTHROPIC_API_KEY",
             "ANTHROPIC_API_KEY_URI",
-            "TYPESAFE_API_KEY",
             "METTA_CAPTURE_URL",
             "METTA_CAPTURE_KEY",
             "AWS_ENDPOINT_URL_BEDROCK_RUNTIME",
@@ -130,12 +114,7 @@ def main(game_bin, player_bin):
                         f"ws://127.0.0.1:{game_port}/player?slot={slot}&token=token-{slot}"
                     )
                 }
-                if slot == 0:
-                    player_env["PLAYER_POLICY_KIND"] = "jev"
-                    player_env["AWS_ENDPOINT_URL_BEDROCK_RUNTIME"] = (
-                        f"http://127.0.0.1:{model_port}"
-                    )
-                elif slot == 1:
+                if slot < 2:
                     player_env["PLAYER_PROMPT"] = "Route around traffic and meter vans."
                     player_env["AWS_ENDPOINT_URL_BEDROCK_RUNTIME"] = (
                         f"http://127.0.0.1:{model_port}"
@@ -162,14 +141,10 @@ def main(game_bin, player_bin):
             assert results["fallback_turns"] == [0, 0, 0, 0], results["fallback_turns"]
             assert results["policy_kinds"] == ["llm", "llm", "scripted", "scripted"]
             assert replay["results"]["turns_llm"][:2] == [2, 2]
-            jev_calls = [call for call in ModelHandler.calls if call[0] == "jev"]
             prompt_calls = [call for call in ModelHandler.calls if call[0] == "prompt"]
-            assert len(jev_calls) == 2, len(jev_calls)
-            assert len(prompt_calls) == 2, len(prompt_calls)
-            assert all(call[1] == "0" for call in jev_calls)
-            assert all(len(call[2]["questions"]) == 9 for call in jev_calls)
+            assert len(prompt_calls) == 4, len(prompt_calls)
             print(
-                "Gridlock mixed native episode: 2 Jev and 2 prompt plans accepted; zero fallback"
+                "Gridlock mixed native episode: 4 prompt plans accepted; zero fallback"
             )
         finally:
             for process in processes:

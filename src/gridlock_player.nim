@@ -1,4 +1,4 @@
-## Gridlock player: scripted, prompt, or Jev policy over one private view and
+## Gridlock player: scripted or prompt policy over one private view and
 ## the ordinary complete routing-plan action.
 ##
 ## To field your own policy, reuse this image and set PLAYER_PROMPT:
@@ -7,7 +7,7 @@
 
 import std/[json, options, os, strutils, unicode]
 import whisky
-import gridlock/[types, llm, jev_policy]
+import gridlock/[types, llm]
 
 const
   ConnectAttempts = 40
@@ -22,8 +22,7 @@ when isMainModule:
     if rawPrompt.runeLen > 4000: rawPrompt.runeSubStr(0, 4000)
     else: rawPrompt
   let kind =
-    if getEnv("PLAYER_POLICY_KIND").strip() == "jev": "jev"
-    elif prompt.strip().len > 0: "prompt"
+    if prompt.strip().len > 0: "prompt"
     else: "scripted"
   let scripted =
     if strutils.strip(getEnv("PLAYER_SCRIPTED")).len > 0:
@@ -116,18 +115,14 @@ when isMainModule:
           }
           let timeoutSeconds = max(1,
             payload["timeout_ms"].getInt() div 1000 - 1)
-          if (kind == "prompt" and client.disabled) or
-              (kind == "jev" and not jevConfigured()):
+          if client.disabled:
             reply["source"] = %"fallback"
             reply["cause"] = %"no_credentials"
           else:
             try:
               reply["plan"] =
-                if kind == "jev":
-                  chooseJevPlan(payload, timeoutSeconds)
-                else:
-                  choosePromptPlan(client, prompt, $payload["view"],
-                    payload["attempt"].getInt() > 1, timeoutSeconds)
+                choosePromptPlan(client, prompt, $payload["view"],
+                  payload["attempt"].getInt() > 1, timeoutSeconds)
             except CatchableError as error:
               echo "gridlock player: policy call failed: ", error.msg
               reply["source"] = %"fallback"

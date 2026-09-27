@@ -377,11 +377,11 @@ suite "seats that misbehave":
 
   test "model registration contains no prompt or model secret":
     var seats = initRoster(@["a", "b", "c", "d"])
-    seats.applyRegistration(0, %*{"type": "register", "kind": "jev"})
+    seats.applyRegistration(0, %*{"type": "register", "kind": "external"})
     check seats.seats[0].registered
     check effectiveScript(seats.seats[0]) == skNone
     check policyKindOf(seats.seats[0]) == "llm"
     expect GridlockError:
-      seats.applyRegistration(0, %*{"type": "register", "kind": "jev",
+      seats.applyRegistration(0, %*{"type": "register", "kind": "external",
         "scripted": "beeline"})
     check effectiveScript(seats.seats[0]) == skNone

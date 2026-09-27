@@ -164,11 +164,11 @@ jobs:
       - name: Mixed ordinary player episode
         run: |
           nim c --hints:off -d:release --path:src \
-            -o:/tmp/gridlock-jev-game src/gridlock.nim
+            -o:/tmp/gridlock-policy-game src/gridlock.nim
           nim c --hints:off -d:release --path:src \
-            -o:/tmp/gridlock-jev-player src/gridlock_player.nim
+            -o:/tmp/gridlock-policy-player src/gridlock_player.nim
           python3 tools/ci/player_policy_smoke.py \
-            /tmp/gridlock-jev-game /tmp/gridlock-jev-player
+            /tmp/gridlock-policy-game /tmp/gridlock-policy-player
 
   # ---------------------------------------------------------------------
   # Packaging smoke: the production image builds, and one real episode runs

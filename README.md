@@ -63,15 +63,14 @@ One image, two entrypoints, and the seat kind is chosen by env on the **player**
 | env | seat |
 |---|---|
 | `PLAYER_PROMPT=<strategy text>` | a prompt player; it calls Claude from the player container once per turn |
-| `PLAYER_POLICY_KIND=jev` | a Jev player; it ranks the plan fields from the same private view |
 | `PLAYER_SCRIPTED=dispatcher` | congestion-aware shortest path with jam-triggered metering (the strong baseline, and the certification player) |
 | `PLAYER_SCRIPTED=beeline` | pure greedy shortest path at full throttle (the weak baseline, and the villain of the idea) |
 
 With no policy environment variable, the seat plays `dispatcher`. The game sends each model player
 a private decision, validates and repairs its plan, and records the resolved stream. Missing credentials produce
 an explicit fallback to `dispatcher`, so offline certification still completes.
-Prompt players read `ANTHROPIC_API_KEY` or the Bedrock sidecar. Jev players read
-`TYPESAFE_API_KEY` or the player sidecar. These credentials belong to the player container.
+Prompt players read `ANTHROPIC_API_KEY` or the Bedrock sidecar. Credentials belong to the player container.
+External players register `kind: "external"` and submit complete plans over the same private decision interface.
 
 ## Watching it
 

@@ -154,11 +154,10 @@ suite "docs and protocols":
       check page["content"]["value"].getStr() == readSource(path)
 
 suite "policies":
-  test "two prompt, one Jev, and two scripted players share one image":
+  test "two prompt and two scripted players share one image":
     let policies = parseJson(readSource("tools/ci/policies.json"))
-    check policies.len == 5
+    check policies.len == 4
     var prompts = 0
-    var jev = 0
     var scripted = 0
     var owned = 0
     var names = initHashSet[string]()
@@ -174,14 +173,11 @@ suite "policies":
         inc scripted
         check parseScriptKind(policy["env"]["PLAYER_SCRIPTED"].getStr()) !=
           skNone
-      if policy["env"]{"PLAYER_POLICY_KIND"}.getStr() == "jev":
-        inc jev
       if policy.hasKey("player"):
         inc owned
         check policy["player"].getStr() ==
           "ply_bac48eb1-662e-44f8-973d-f3e016dccf5d"
     check prompts == 2
-    check jev == 1
     check scripted == 2
     check owned == 1
 

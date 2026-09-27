@@ -11,7 +11,7 @@ import baselines
 
 type
   PolicyKind* = enum
-    pkScripted, pkPrompt, pkJev
+    pkScripted, pkPrompt, pkExternal
 
   SeatRegistration* = object
     kind*: PolicyKind
@@ -48,7 +48,7 @@ proc applyRegistration*(roster: var Roster, slot: int, payload: JsonNode) =
     case payload{"kind"}.getStr("scripted")
     of "scripted": pkScripted
     of "prompt": pkPrompt
-    of "jev": pkJev
+    of "external": pkExternal
     else: raise newException(GridlockError, "unknown player kind")
   let scriptedNode = payload{"scripted"}
   let scripted =
@@ -62,7 +62,7 @@ proc applyRegistration*(roster: var Roster, slot: int, payload: JsonNode) =
     else:
       if scripted != skNone:
         raise newException(GridlockError,
-          "model player cannot register a scripted plan")
+          "external or prompt player cannot register a scripted plan")
       skNone
   roster.seats[slot].kind = kind
   roster.seats[slot].scripted = resolvedScript

@@ -106,7 +106,7 @@ results_props["seed"] = {"description": "The resolved episode seed.", "type": "i
 
 player_protocol = (
  "gridlock.player.v2 - JSON text frames over COWORLD_PLAYER_WS_URL. Players register once with "
- "kind scripted, prompt, or jev and an optional scripted baseline or policy label. No prompt or "
+ "kind scripted, prompt, or external and an optional scripted baseline or policy label. No prompt or "
  "model credential enters the game. The game sends all model seats their private view in a "
  "decision frame with id, turn, attempt, and timeout_ms. The player replies with the same id and "
  "a complete ordinary routing plan, or an explicit fallback cause. The game owns two shared "
@@ -199,12 +199,6 @@ manifest["player"] = [collections.OrderedDict([
                    "limits": {"cpu": "1"}}),
     ("source_url", SRC)]),
     collections.OrderedDict([
-        ("id", "jev"), ("type", "player"), ("name", "Jev"),
-        ("description", "Jev ranks independent fields of the ordinary private routing plan."),
-        ("image", "{{GRIDLOCK_IMAGE}}"), ("run", ["/bin/gridlock-player"]),
-        ("env", {"PLAYER_POLICY_KIND": "jev"}),
-        ("source_url", SRC)]),
-    collections.OrderedDict([
         ("id", "prompt"), ("type", "player"), ("name", "prompt dispatcher"),
         ("description", "Claude prompt policy over the same private view and plan action."),
         ("image", "{{GRIDLOCK_IMAGE}}"), ("run", ["/bin/gridlock-player"]),
@@ -259,7 +253,7 @@ manifest["certification"] = collections.OrderedDict([
         ("wallClockBudgetSeconds", 180),
         ("playerConnectTimeoutSeconds", 60),
         ("cityPath", "gridcity")])),
-    ("players", [{"player_id": "jev"}, {"player_id": "prompt"},
+    ("players", [{"player_id": "prompt"}, {"player_id": "prompt"},
                  {"player_id": "baseline"}, {"player_id": "baseline"}]),
 ])
 
