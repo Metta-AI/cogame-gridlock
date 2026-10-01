@@ -24,7 +24,7 @@ class ModelHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         data = self.rfile.read(int(self.headers["Content-Length"]))
         request = json.loads(data)
-        if self.path.startswith("/model/") and self.path.endswith("/invoke"):
+        if self.path == "/v1/messages":
             body = {
                 "content": [
                     {
@@ -88,7 +88,7 @@ def main(game_bin, player_bin):
             "ANTHROPIC_API_KEY_URI",
             "METTA_CAPTURE_URL",
             "METTA_CAPTURE_KEY",
-            "AWS_ENDPOINT_URL_BEDROCK_RUNTIME",
+            "COWORLD_LLM_ENDPOINT",
             "AWS_BEARER_TOKEN_BEDROCK",
         ):
             env.pop(name, None)
@@ -116,7 +116,7 @@ def main(game_bin, player_bin):
                 }
                 if slot < 2:
                     player_env["PLAYER_PROMPT"] = "Route around traffic and meter vans."
-                    player_env["AWS_ENDPOINT_URL_BEDROCK_RUNTIME"] = (
+                    player_env["COWORLD_LLM_ENDPOINT"] = (
                         f"http://127.0.0.1:{model_port}"
                     )
                 else:
