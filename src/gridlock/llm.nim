@@ -69,7 +69,7 @@ traffic; it costs you deliveries in the short run and buys a moving city back.
 
 type
   LlmTransport = enum
-    ltNone, ltBedrock, ltAnthropic
+    ltNone, ltSidecar, ltBedrock, ltAnthropic
 
   LlmRequest* = object
     seat*: int
@@ -112,6 +112,7 @@ type
     curl: Curly
     transport: LlmTransport
     apiKey: string
+    sidecarEndpoint: string
     bedrockEndpoint: string
     bedrockModels: seq[string]
     bedrockModel: int
@@ -167,6 +168,13 @@ proc bedrockUrl(client: LlmClient): string =
 
 proc newLlmClient*(maxOutputTokens: int, model: string): LlmClient =
   result = LlmClient(model: model, maxOutputTokens: maxOutputTokens)
+  let sidecarEndpoint = getEnv("COWORLD_LLM_ENDPOINT").strip()
+  if sidecarEndpoint.len > 0:
+    result.transport = ltSidecar
+    result.sidecarEndpoint = sidecarEndpoint.strip(chars = {'/'}, leading = false)
+    result.model = getEnv("COWORLD_LLM_MODEL", "anthropic/claude-haiku-4.5")
+    result.curl = newCurly()
+    return
   let bedrockEndpoint = strutils.strip(getEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME"))
   let bedrockToken = strutils.strip(getEnv("AWS_BEARER_TOKEN_BEDROCK"))
   if bedrockEndpoint.len > 0 or bedrockToken.len > 0:
@@ -208,7 +216,7 @@ proc userMessage*(request: SeatRequest, retryHint: bool): string =
       "congestion_weight, patience, dispatch, spread, corridor, avoid, " &
       "priority, note and say.")
 
-proc requestFor(client: LlmClient, system, user: string):
+proc requestFor(client: LlmClient, system, user: string, slot: int):
     tuple[url: string, headers: HttpHeaders, body: string] =
   var body = %*{
     "max_tokens": client.maxOutputTokens,
@@ -217,12 +225,18 @@ proc requestFor(client: LlmClient, system, user: string):
     "messages": [{"role": "user", "content": user}]
   }
   var headers: HttpHeaders
+  if client.transport == ltSidecar and slot >= 0:
+    headers["X-Coworld-Player-Slot"] = $slot
   headers["content-type"] = "application/json"
   if client.transport == ltBedrock:
     body["anthropic_version"] = %BedrockAnthropicVersion
     if client.bedrockToken.len > 0:
       headers["authorization"] = "Bearer " & client.bedrockToken
     result.url = client.bedrockUrl()
+  elif client.transport == ltSidecar:
+    body["model"] = %client.model
+    headers["anthropic-version"] = AnthropicVersion
+    result.url = client.sidecarEndpoint & "/v1/messages"
   else:
     body["model"] = %client.model
     ## No `output_config.effort`: Haiku 4.5 rejects the whole request with a
@@ -278,11 +292,9 @@ proc runBatch(client: LlmClient, requests: seq[LlmRequest],
     return client.batchOverride(requests, timeoutSeconds)
   result = newSeq[LlmReply](requests.len)
   var batch: RequestBatch
-  ## The headers are identical for every seat in the batch; only the body
-  ## differs, so build them once.
-  let shared = client.requestFor(SystemPrompt, "")
   for i, request in requests:
-    batch.post(request.url, shared.headers, request.body, $i)
+    let prepared = client.requestFor(SystemPrompt, "", request.seat)
+    batch.post(request.url, prepared.headers, request.body, $i)
   let responses = client.curl.makeRequests(batch, timeoutSeconds)
   for i in 0 ..< requests.len:
     result[i] = LlmReply(seat: requests[i].seat)
@@ -332,7 +344,7 @@ proc decideAll*(client: LlmClient, seats: array[Seats, SeatRequest]):
     var requests: seq[LlmRequest]
     for seat in open:
       let user = userMessage(seats[seat], attempt > 0)
-      let built = client.requestFor(SystemPrompt, user)
+      let built = client.requestFor(SystemPrompt, user, -1)
       requests.add(LlmRequest(seat: seat, url: built.url, body: built.body))
     let attemptStart = epochTime()
     let replies = runBatch(client, requests, timeout)
@@ -371,7 +383,7 @@ proc choosePromptPlan*(client: LlmClient, prompt: string, viewJson: string,
   ## the returned plan against the actual previous plan and owns retry timing.
   let request = SeatRequest(prompt: prompt, viewJson: viewJson)
   let built = client.requestFor(SystemPrompt,
-    userMessage(request, retryHint))
+    userMessage(request, retryHint), -1)
   let replies = client.runBatch(@[LlmRequest(seat: 0, url: built.url,
     body: built.body)], timeoutSeconds)
   if replies.len != 1 or replies[0].error.len > 0:
