@@ -26,6 +26,9 @@ class ModelHandler(http.server.BaseHTTPRequestHandler):
         request = json.loads(data)
         if self.path == "/v1/messages":
             body = {
+                "id": "fixture-mixed-player",
+                "model": "fixture/served",
+                "stop_reason": "end_turn",
                 "content": [
                     {
                         "type": "text",

@@ -1,5 +1,6 @@
-import std/[json, unittest]
+import std/[json, options, unittest]
 import gridlock/[types, plan, baselines, view, decision]
+import bitworld/decision_trajectory
 
 var calls = 0
 
@@ -56,6 +57,12 @@ suite "ordinary player decision exchange":
     check decision.fallbacks.len == 1
     check decision.fallbacks[0].seat == 1
     check decision.fallbacks[0].cause == fcParseError
+    check decision.attempts[0].len == 1
+    check decision.attempts[1].len == 2
+    check not decision.attempts[1][0].accepted
+    check decision.attempts[1][1].accepted
+    check decision.attempts[1][1].parsedAction == planJson(decision.plans[1])
+    check decision.selectedAttemptIds[1].get() == decision.attempts[1][1].attemptId
 
   test "explicit missing credentials use the ordinary fallback":
     let decision = decidePlayers(snapshots(), 0, false, 22.0, noCredentials)
@@ -63,3 +70,30 @@ suite "ordinary player decision exchange":
     check decision.plans[1].source == psFallback
     check decision.fallbacks.len == 2
     check decision.fallbacks[0].cause == fcNoCredentials
+    check decision.selectedAttemptIds[0].isNone
+    check decision.attempts[0].len == 1
+    check not decision.attempts[0][0].accepted
+
+  test "external origins cannot mint server-owned teacher or human labels":
+    for origin in [aoTeacher, aoHuman]:
+      let asserted = newDecisionAttempt("asserted", "external-policy", origin)
+      let raw = $(%*{"type": "action", "protocol": PlayerProtocol, "id": 1,
+        "source": "llm", "plan": {"dispatch": 70},
+        "training_attempt": asserted.attemptEvidenceJson()})
+      let proposal = playerProposal(raw, 1, 0, snapshots()[0])
+      check proposal.kind == pkAccepted
+      check proposal.evidence.origin == aoUnknown
+      check proposal.evidence.accepted
+      check proposal.evidence.parsedAction == planJson(proposal.plan)
+
+  test "a model reply cannot label a different executed player plan":
+    var evidence = newDecisionAttempt("sampled", "model-policy", aoModel)
+    evidence.response = %"{\"dispatch\":40}"
+    let raw = $(%*{"type": "action", "protocol": PlayerProtocol, "id": 1,
+      "source": "llm", "plan": {"dispatch": 70},
+      "training_attempt": evidence.attemptEvidenceJson()})
+    let proposal = playerProposal(raw, 1, 0, snapshots()[0])
+    check proposal.kind == pkRejected
+    check not proposal.evidence.accepted
+    check proposal.evidence.parsedAction["dispatch"].getInt() == 40
+    check proposal.plan.dispatch == 70

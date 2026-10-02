@@ -85,6 +85,23 @@ proc baselineInput*(sim: Sim, seat: int): BaselineInput =
   for i in 0 ..< min(6, sim.backlog[seat].len):
     result.nextDestDistricts.add(districtOfNode(sim.backlog[seat][i].dest))
 
+proc baselineInput*(view: JsonNode): BaselineInput =
+  ## The teacher reads exactly the observation supplied to the ordinary player.
+  result.jamIndex = view["city"]["jam_index"].getInt()
+  result.backlog = view["you"]["backlog"].getInt()
+  result.stalledPct = view["you"]["stalled_pct"].getInt()
+  let depot = view["you"]["depot_district"]
+  result.depotDistrict = districtIndex(depot[0].getInt(), depot[1].getInt())
+  var index = 0
+  for row in view["city"]["districts_heat"]:
+    for digit in row.getStr():
+      result.digits[index] = ord(digit) - ord('0')
+      inc index
+  doAssert index == DistrictCount
+  for order in view["you"]["next_orders"]:
+    let district = order["district"]
+    result.nextDestDistricts.add(districtIndex(district[0].getInt(), district[1].getInt()))
+
 proc eventsLastTurn*(sim: Sim, limit: int): seq[string] =
   ## The turn that just played. `buildView` runs BEFORE `installPlans`
   ## advances `sim.turn`, so at the start of turn N `sim.turn` is N-1 and its
@@ -143,7 +160,7 @@ proc buildView*(sim: Sim, seat: int): JsonNode =
       "delivered": sim.delivered[other],
       "on_road": onRoad})
   var lastPlan: JsonNode =
-    if sim.turn <= 0: newJNull() else: planJson(sim.plans[seat])
+    if sim.tick == 0: newJNull() else: planJson(sim.plans[seat])
   var recent = newJArray()
   for line in eventsLastTurn(sim, 6):
     recent.add(%line)
@@ -153,9 +170,12 @@ proc buildView*(sim: Sim, seat: int): JsonNode =
         float(TargetFps)
     else: 0.0
   %*{
-    "turn": sim.turn,
+    "turn": sim.tick div sim.config.turnTicks,
     "of": turns,
     "tick": sim.tick,
+    "turn_start_tick": sim.tick,
+    "turn_end_tick": min(sim.config.episodeTicks, sim.tick + sim.config.turnTicks),
+    "tick_hz": TargetFps,
     "ticks_left": max(0, sim.config.episodeTicks - sim.tick),
     "seconds_left":
       float(max(0, sim.config.episodeTicks - sim.tick)) / float(TargetFps),

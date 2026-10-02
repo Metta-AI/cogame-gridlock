@@ -11,9 +11,9 @@ BINARY = Path(sys.argv[1]).resolve()
 MANIFEST = Path(__file__).resolve().parents[1] / "coworld_manifest_template.json"
 
 
-def play(variant: str, teacher: bool) -> None:
+def play(variant: str, teacher: bool, language: bool) -> None:
     process = subprocess.Popen(
-        [str(BINARY), str(MANIFEST), variant], stdin=subprocess.PIPE,
+        [str(BINARY), str(MANIFEST), variant, *(["--language"] if language else [])], stdin=subprocess.PIPE,
         stdout=subprocess.PIPE, text=True, bufsize=1, cwd="/tmp",
     )
     assert process.stdin is not None and process.stdout is not None
@@ -27,6 +27,21 @@ def play(variant: str, teacher: bool) -> None:
     try:
         observation = request({"kind": "reset", "seed": f"gridlock-{variant}-{teacher}",
                                "players": 4})
+        if language:
+            assert observation["inference_mode"] == "text_action"
+            original = observation
+            fallback = json.loads(request({"kind": "teacher"})["response"])
+            rejected = request({"kind": "step", "decision_id": 0, "response": "invalid"})
+            assert rejected["kind"] == "rejected"
+            assert rejected["observation"]["decision_id"] == 0
+            assert rejected["observation"]["messages"][1]["content"].startswith(original["messages"][1]["content"])
+            assert "previous reply" in rejected["observation"]["messages"][1]["content"]
+            consumed = request({"kind": "step", "decision_id": 0, "response": "invalid"})
+            assert consumed["kind"] == "consumed_rejection" and consumed["observation"]["decision_id"] == 1
+            assert consumed["action"] == fallback
+            observation = request({"kind": "reset", "seed": f"gridlock-{variant}-{teacher}", "players": 4})
+        else:
+            assert observation["inference_mode"] is None
         decisions = 0
         widths = set()
         while observation["kind"] == "decision":
@@ -41,10 +56,14 @@ def play(variant: str, teacher: bool) -> None:
             widths.add(len(encoding["values"]))
             assert encoding["actions"] == [{"choice": i} for i in range(4)]
             choice = (json.loads(request({"kind": "teacher"})["response"])
-                      if teacher else rng.choice(encoding["actions"]))
+                      if teacher else ({"dispatch": rng.choice([40, 60, 80])} if language else rng.choice(encoding["actions"])))
             result = request({"kind": "step", "decision_id": decisions,
                               "response": json.dumps(choice)})
-            assert result["kind"] == "accepted" and result["action"] == choice
+            assert result["kind"] == "accepted"
+            if language:
+                assert all(result["action"][key] == value for key, value in choice.items())
+            else:
+                assert result["action"] == choice
             observation = result["observation"]
             decisions += 1
             assert decisions <= (80 if variant == "default" else 48)
@@ -68,4 +87,5 @@ def play(variant: str, teacher: bool) -> None:
 if __name__ == "__main__":
     for name in ("default", "rush"):
         for use_teacher in (True, False):
-            play(name, use_teacher)
+            for language in (False, True):
+                play(name, use_teacher, language)

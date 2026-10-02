@@ -3,3 +3,8 @@ dist
 replay-viewer/dist
 node_modules
 tmp
+
+# Private model decisions and offline training corpora.
+*.jsonl
+**/qualification*.json
+**/corpus

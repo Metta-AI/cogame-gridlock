@@ -106,3 +106,29 @@ docker build -t coworld-gridlock:ci .
 Rules in [docs/RULES.md](docs/RULES.md); the wire protocol in
 [docs/PROTOCOL.md](docs/PROTOCOL.md); the design note in
 [docs/plans/2026-08-23-gridlock-design.md](docs/plans/2026-08-23-gridlock-design.md).
+
+## Private training evidence
+
+`COGAME_SAVE_TRAJECTORY_URI` captures engine-authoritative private decision events.
+The runtime must also provide `COWORLD_EPISODE_ID`, `COWORLD_GAME_VERSION`, and
+`COWORLD_SOURCE_REVISION`. Events retain every started and completed model attempt,
+exact private prompts, native call IDs, and the actual installed routing plan.
+The replay's seed, city, and installed plan stream reproduce actual traffic ticks.
+Private observations record exclusive turn tick bounds and the simulation tick rate.
+Provider traces stay outside public replay and game logs.
+
+`tools/train_bridge.nim MANIFEST VARIANT --language [OPERATOR_PROMPT]` uses the
+ordinary player renderer and parser. Invalid replies receive one exact retry view;
+a second failure consumes the decision with the game's dispatcher fallback.
+Numeric choices remain a separate training task.
+
+`tools/export_posttrain.nim OUTPUT EPISODES VARIANT GAME_VERSION` exports complete
+private episodes and intentional view-only teacher labels. Variant-specific episode
+IDs share the runtime's `gridlock-<seed>` family for dataset splitting. Exported
+corpora have private directory and file permissions.
+
+`COWORLD_LLM_TEMPERATURE` must be finite and in `[0, 1]`. The native client records
+actual checkpoint and sampling evidence when the provider supplies it. Local HTTP
+fixtures establish transport and parser parity; they do not establish platform
+archive verification or learner qualification. External attempt metadata remains
+player-asserted until its native call IDs join an independent platform archive.

@@ -13,3 +13,5 @@ nimcache/
 /viewer-smoke.png
 /viewer-smoke.json
 *.exe
+
+__pycache__/

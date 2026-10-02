@@ -7,6 +7,7 @@
 
 import std/[json, options, os, strutils, unicode]
 import whisky
+import bitworld/decision_trajectory
 import gridlock/[types, llm]
 
 const
@@ -120,18 +121,25 @@ when isMainModule:
             reply["cause"] = %"no_credentials"
           else:
             try:
-              reply["plan"] =
-                choosePromptPlan(client, prompt, $payload["view"],
-                  payload["attempt"].getInt() > 1, timeoutSeconds)
+              proc attemptStarted(attempt: DecisionAttempt) =
+                socket.send($(%*{"type": "attempt_started", "id": payload["id"],
+                  "training_attempt": attempt.attemptEvidenceJson()}))
+              reply["response"] = %choosePromptPlan(client, prompt, $payload["view"],
+                payload["attempt"].getInt() > 1, timeoutSeconds, payload["slot"].getInt(),
+                $payload["slot"].getInt() & "-" & $payload["id"].getInt(),
+                (if label.len > 0: label else: "prompt"), attemptStarted)
+              reply["training_attempt"] = client.lastAttempt.attemptEvidenceJson()
             except CatchableError as error:
-              echo "gridlock player: policy call failed: ", error.msg
+              client.lastAttempt.rejectionReason = some(error.msg)
+              reply["training_attempt"] = client.lastAttempt.attemptEvidenceJson()
+              echo "gridlock player: policy call failed"
               reply["source"] = %"fallback"
               reply["cause"] = %"transport_error"
           socket.send($reply)
         else:
           discard
       except CatchableError as error:
-        echo "gridlock player: ignoring bad frame: ", error.msg
+        echo "gridlock player: ignoring bad private frame"
   except CatchableError as error:
     echo "gridlock player: socket closed (", error.msg, "); exiting cleanly"
   try:
