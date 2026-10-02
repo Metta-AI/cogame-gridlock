@@ -49,6 +49,8 @@ proc playerProposal*(raw: string, requestId, seat: int,
     let reply = parseJson(raw)
     if reply.hasKey("training_attempt"):
       result.evidence = readAttemptEvidence(reply["training_attempt"])
+      if result.evidence.origin in {aoTeacher, aoHuman}:
+        result.evidence.origin = aoUnknown
     if reply["type"].getStr() == "attempt_timeout":
       raise newException(GridlockError, "player plan timed out after model request")
     if reply["type"].getStr() != "action" or

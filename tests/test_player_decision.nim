@@ -1,5 +1,6 @@
 import std/[json, options, unittest]
 import gridlock/[types, plan, baselines, view, decision]
+import bitworld/decision_trajectory
 
 var calls = 0
 
@@ -72,3 +73,15 @@ suite "ordinary player decision exchange":
     check decision.selectedAttemptIds[0].isNone
     check decision.attempts[0].len == 1
     check not decision.attempts[0][0].accepted
+
+  test "external origins cannot mint server-owned teacher or human labels":
+    for origin in [aoTeacher, aoHuman]:
+      let asserted = newDecisionAttempt("asserted", "external-policy", origin)
+      let raw = $(%*{"type": "action", "protocol": PlayerProtocol, "id": 1,
+        "source": "llm", "plan": {"dispatch": 70},
+        "training_attempt": asserted.attemptEvidenceJson()})
+      let proposal = playerProposal(raw, 1, 0, snapshots()[0])
+      check proposal.kind == pkAccepted
+      check proposal.evidence.origin == aoUnknown
+      check proposal.evidence.accepted
+      check proposal.evidence.parsedAction == planJson(proposal.plan)
