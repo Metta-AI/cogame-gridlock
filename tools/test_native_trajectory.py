@@ -115,6 +115,7 @@ for flow in ("accepted", "invalid", "sampled", "greedy-null", "greedy-tokens", "
                           if key not in {"turn", "seat", "source", "latency_ms"}}
                 assert actual == decision["executed_action"]
                 for attempt in decision["attempts"]:
+                    assert attempt["inference_mode"] == "text_action"
                     if attempt["platform_call_id"] is None: continue
                     call_id = attempt["platform_call_id"]
                     assert call_id not in seen; seen.add(call_id)
