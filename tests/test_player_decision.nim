@@ -85,3 +85,15 @@ suite "ordinary player decision exchange":
       check proposal.evidence.origin == aoUnknown
       check proposal.evidence.accepted
       check proposal.evidence.parsedAction == planJson(proposal.plan)
+
+  test "a model reply cannot label a different executed player plan":
+    var evidence = newDecisionAttempt("sampled", "model-policy", aoModel)
+    evidence.response = %"{\"dispatch\":40}"
+    let raw = $(%*{"type": "action", "protocol": PlayerProtocol, "id": 1,
+      "source": "llm", "plan": {"dispatch": 70},
+      "training_attempt": evidence.attemptEvidenceJson()})
+    let proposal = playerProposal(raw, 1, 0, snapshots()[0])
+    check proposal.kind == pkRejected
+    check not proposal.evidence.accepted
+    check proposal.evidence.parsedAction["dispatch"].getInt() == 40
+    check proposal.plan.dispatch == 70

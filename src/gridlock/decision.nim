@@ -75,9 +75,17 @@ proc playerProposal*(raw: string, requestId, seat: int,
         raise newException(GridlockError, "player action has no plan fields")
       result.plan = repairPlan(proposed, snapshot.previous)
     result.plan.source = psLlm
+    if result.evidence.origin == aoModel:
+      if result.evidence.response.kind != JString:
+        raise newException(GridlockError, "model attempt response must be text")
+      let sampled = parsePlan(result.evidence.response.getStr(), snapshot.previous)
+      result.evidence.parsedAction = planJson(sampled)
+      if result.evidence.parsedAction != planJson(result.plan):
+        raise newException(GridlockError, "model response differs from player action")
+    else:
+      result.evidence.parsedAction = planJson(result.plan)
     result.kind = pkAccepted
     result.evidence.accepted = true
-    result.evidence.parsedAction = planJson(result.plan)
   except CatchableError as error:
     result.kind = pkRejected
     result.cause = fcParseError
