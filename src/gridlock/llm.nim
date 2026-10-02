@@ -1,10 +1,9 @@
 ## Claude-backed player policy. The game sends a private view and receives an
 ## ordinary routing plan; only this player-side module calls the model.
 ##
-## Gridlock is a SIMULTANEOUS-decision game, so all four seats' calls go out
-## as ONE parallel batch per turn (`curly.makeRequests`) — never sequentially.
-## Every turn batches exactly four requests and at most four are ever in
-## flight. First attempt 14 s; on timeout / transport error / non-JSON / no
+## Gridlock is a simultaneous-decision game. The server sends all private
+## decisions before waiting; each player owns its model transport. At most
+## four calls are in flight. First attempt 14 s; on timeout / transport error / non-JSON / no
 ## usable plan, ONE retry at 6 s with a hint; then the `dispatcher` scripted
 ## plan and a `fallback` record. Worst case 14 + 6 = 20 s inside the 22 s
 ## per-turn budget.
@@ -14,8 +13,8 @@
 ## With no credentials at all the whole episode finishes on the scripted
 ## layer, which is what makes offline certification and the docker smoke work.
 
-import std/[json, os, strutils, times]
-import bitworld/runtime
+import std/[json, math, options, os, strutils, times]
+import bitworld/[runtime, decision_trajectory]
 import curly
 import types
 import plan
@@ -123,6 +122,8 @@ type
       ## The outer per-turn deadline decideAll holds itself to. 0 disables
       ## it, which is what the offline test client runs with.
     disabled*: bool
+    temperature*: float
+    lastAttempt*: DecisionAttempt
     batchOverride*: BatchProc
       ## Test seam: when set, decideAll drives this instead of libcurl, so
       ## tests can observe the in-flight window of every seat in a batch.
@@ -167,7 +168,11 @@ proc bedrockUrl(client: LlmClient): string =
     client.bedrockModels[client.bedrockModel] & "/invoke"
 
 proc newLlmClient*(maxOutputTokens: int, model: string): LlmClient =
-  result = LlmClient(model: model, maxOutputTokens: maxOutputTokens)
+  result = LlmClient(model: model, maxOutputTokens: maxOutputTokens,
+    temperature: parseFloat(getEnv("COWORLD_LLM_TEMPERATURE", "0.4")))
+  if classify(result.temperature) in {fcNan, fcInf, fcNegInf} or
+      result.temperature < 0 or result.temperature > 1:
+    raise newException(GridlockError, "COWORLD_LLM_TEMPERATURE must be finite and in [0, 1]")
   let sidecarEndpoint = getEnv("COWORLD_LLM_ENDPOINT").strip()
   if sidecarEndpoint.len > 0:
     result.transport = ltSidecar
@@ -206,7 +211,7 @@ proc newOfflineLlmClient*(batch: BatchProc): LlmClient =
     model: "test", batchOverride: batch)
 
 proc userMessage*(request: SeatRequest, retryHint: bool): string =
-  result = strutils.strip(request.prompt)
+  result = clipRunes(strutils.strip(request.prompt), 4000)
   if result.len > 0:
     result.add("\n\n")
   result.add(request.viewJson)
@@ -220,7 +225,7 @@ proc requestFor(client: LlmClient, system, user: string, slot: int):
     tuple[url: string, headers: HttpHeaders, body: string] =
   var body = %*{
     "max_tokens": client.maxOutputTokens,
-    "temperature": 0.4,
+    "temperature": client.temperature,
     "system": system,
     "messages": [{"role": "user", "content": user}]
   }
@@ -378,17 +383,54 @@ proc decideAll*(client: LlmClient, seats: array[Seats, SeatRequest]):
     result.plans[seat].latencyMs = spentMs
 
 proc choosePromptPlan*(client: LlmClient, prompt: string, viewJson: string,
-    retryHint: bool, timeoutSeconds: int): JsonNode =
-  ## One player seat makes one model call per game request. The game repairs
-  ## the returned plan against the actual previous plan and owns retry timing.
-  let request = SeatRequest(prompt: prompt, viewJson: viewJson)
-  let built = client.requestFor(SystemPrompt,
-    userMessage(request, retryHint), -1)
-  let replies = client.runBatch(@[LlmRequest(seat: 0, url: built.url,
-    body: built.body)], timeoutSeconds)
-  if replies.len != 1 or replies[0].error.len > 0:
-    raise newException(GridlockError,
-      if replies.len == 1: replies[0].error else: "no prompt reply")
-  result = extractJsonObject(replies[0].text)
-  if not hasAnyPlanKey(result):
-    raise newException(GridlockError, "reply carried no plan keys")
+    retryHint: bool, timeoutSeconds, slot: int, attemptId, policy: string,
+    beforeCall: proc(attempt: DecisionAttempt) {.closure.}): string =
+  ## The game owns text parsing, repair, retries, and actual plan installation.
+  let user = userMessage(SeatRequest(prompt: prompt, viewJson: viewJson), retryHint)
+  let request = client.requestFor(SystemPrompt, user, slot)
+  client.lastAttempt = newDecisionAttempt(attemptId, policy, aoModel)
+  client.lastAttempt.prompt = %*[{"role": "system", "content": SystemPrompt},
+    {"role": "user", "content": user}]
+  client.lastAttempt.request = parseJson(request.body)
+  client.lastAttempt.model = some(if client.transport == ltBedrock:
+    client.bedrockModels[client.bedrockModel] else: client.model)
+  client.lastAttempt.decoder = %*{"temperature": client.temperature,
+    "max_tokens": client.maxOutputTokens}
+  beforeCall(client.lastAttempt)
+  let callStarted = epochTime()
+  let response = client.curl.post(request.url, request.headers,
+    request.body, timeoutSeconds)
+  client.lastAttempt.latencyMs = some(max(0.0, (epochTime() - callStarted) * 1000))
+  client.lastAttempt.rawResponse = %response.body
+  if response.headers.contains("X-Softmax-Llm-Call-Id"):
+    client.lastAttempt.platformCallId = some(response.headers["X-Softmax-Llm-Call-Id"])
+  for header in ["X-Coworld-Checkpoint-Sha256", "X-Coworld-Tokenizer-Sha256",
+      "X-Coworld-Chat-Template-Sha256"]:
+    if response.headers.contains(header):
+      case header
+      of "X-Coworld-Checkpoint-Sha256": client.lastAttempt.modelIdentity = some(response.headers[header])
+      of "X-Coworld-Tokenizer-Sha256": client.lastAttempt.tokenizerIdentity = some(response.headers[header])
+      else: client.lastAttempt.chatTemplateSha256 = some(response.headers[header])
+  let text = client.textOf(response, "", request.url)
+  client.lastAttempt.response = %text
+  let payload = parseJson(response.body)
+  if payload.hasKey("usage"):
+    let usage = payload["usage"]
+    client.lastAttempt.inputTokens = some(usage["input_tokens"].getInt())
+    client.lastAttempt.outputTokens = some(usage["output_tokens"].getInt())
+  if payload.hasKey("model"): client.lastAttempt.model = some(payload["model"].getStr())
+  client.lastAttempt.stopReason = some(payload["stop_reason"].getStr())
+  if payload.hasKey("sampling_evidence") and payload["sampling_evidence"].kind != JNull:
+    let sampling = payload["sampling_evidence"]
+    var promptIds, sampledIds: seq[int]
+    var probabilities: seq[float]
+    for token in sampling["prompt_token_ids"]: promptIds.add(token.getInt())
+    for token in sampling["completion_token_ids"]: sampledIds.add(token.getInt())
+    client.lastAttempt.promptTokenIds = some(promptIds)
+    client.lastAttempt.sampledTokenIds = some(sampledIds)
+    if sampling["behavior_log_probs"].kind != JNull:
+      for probability in sampling["behavior_log_probs"]: probabilities.add(probability.getFloat())
+      client.lastAttempt.behaviorLogprobs = some(probabilities)
+    client.lastAttempt.stopReason = some(sampling["stop_reason"].getStr())
+    client.lastAttempt.decoder["sampling_evidence"] = copy(sampling)
+  text

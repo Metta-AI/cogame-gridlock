@@ -1,4 +1,4 @@
-import std/[json, unittest]
+import std/[json, options, unittest]
 import gridlock/[types, plan, baselines, view, decision]
 
 var calls = 0
@@ -56,6 +56,12 @@ suite "ordinary player decision exchange":
     check decision.fallbacks.len == 1
     check decision.fallbacks[0].seat == 1
     check decision.fallbacks[0].cause == fcParseError
+    check decision.attempts[0].len == 1
+    check decision.attempts[1].len == 2
+    check not decision.attempts[1][0].accepted
+    check decision.attempts[1][1].accepted
+    check decision.attempts[1][1].parsedAction == planJson(decision.plans[1])
+    check decision.selectedAttemptIds[1].get() == decision.attempts[1][1].attemptId
 
   test "explicit missing credentials use the ordinary fallback":
     let decision = decidePlayers(snapshots(), 0, false, 22.0, noCredentials)
@@ -63,3 +69,6 @@ suite "ordinary player decision exchange":
     check decision.plans[1].source == psFallback
     check decision.fallbacks.len == 2
     check decision.fallbacks[0].cause == fcNoCredentials
+    check decision.selectedAttemptIds[0].isNone
+    check decision.attempts[0].len == 1
+    check not decision.attempts[0][0].accepted

@@ -23,8 +23,8 @@
 ## The game owns shared deadlines, validation, fallback, and replay. Model
 ## calls and candidate ranking run only in the player container.
 
-import std/[json, locks, monotimes, os, sets, strutils, tables, times]
-import bitworld/runtime
+import std/[json, locks, monotimes, options, os, sets, strutils, tables, times]
+import bitworld/[runtime, decision_trajectory]
 import mummy
 import mummy/routers
 import types
@@ -59,6 +59,8 @@ type
     playerSockets: Table[int, WebSocket]
     socketSlots: Table[WebSocket, int]
     actionReplies: Table[int, string]
+    attemptEvidence: Table[int, JsonNode]
+    trajectory: DecisionTrajectory
     globalSockets: HashSet[WebSocket]
     started: bool
     finished: bool
@@ -130,9 +132,10 @@ proc declarePlayerFailure*(slot: int, message: string) =
 
 proc seatRequestsLocked(gs: GameState): array[Seats, SeatSnapshot] =
   for slot in 0 ..< Seats:
+    let view = buildView(gs.game, slot)
     result[slot] = SeatSnapshot(
-      view: buildView(gs.game, slot),
-      baseline: baselineInput(gs.game, slot),
+      view: view,
+      baseline: baselineInput(view),
       scripted: effectiveScriptNow(gs.seats.seats[slot]),
       previous: gs.game.plans[slot])
 
@@ -166,6 +169,7 @@ proc exchangeDecisions(requests: seq[JsonNode], timeoutMs: int):
           sockets[position] = appState.playerSockets[slot]
           connected[position] = true
           appState.actionReplies.del(slot)
+          appState.attemptEvidence.del(slot)
     for position, socket in sockets:
       if connected[position]:
         socket.send($requests[position])
@@ -189,6 +193,14 @@ proc exchangeDecisions(requests: seq[JsonNode], timeoutMs: int):
       if not pending:
         break
       sleep(10)
+    withLock stateLock:
+      for position, request in requests:
+        let slot = request["slot"].getInt()
+        if result[position].len == 0 and appState.attemptEvidence.hasKey(slot):
+          let evidence = appState.attemptEvidence[slot]
+          if evidence["id"] == request["id"]:
+            result[position] = $(%*{"type": "attempt_timeout",
+              "training_attempt": evidence["training_attempt"]})
 
 proc finishEpisode(runtimeConfig: RuntimeConfig) {.gcsafe.} =
   {.gcsafe.}:
@@ -202,6 +214,13 @@ proc finishEpisode(runtimeConfig: RuntimeConfig) {.gcsafe.} =
         endEpisode(appState.game, "complete", "full_time")
       results = resultsJson(appState.game)
       replayData = replayBytes(appState.game, results)
+      if getEnv(CogameSaveTrajectoryUriEnv).len > 0:
+        var outcomes = newJObject()
+        for slot in 0 ..< Seats: outcomes[$slot] = results["scores"][slot]
+        appState.trajectory.finish((case results["reason"].getStr()
+          of "complete": esCompleted
+          of "deadline": esTruncated
+          else: esFailed), results, outcomes)
       ## Broadcast `done` to every seat BEFORE writing artifacts: the hosted
       ## worker tears player pods down as soon as results.json exists.
       let payload = $ %*{"done": true, "result": results}
@@ -209,6 +228,8 @@ proc finishEpisode(runtimeConfig: RuntimeConfig) {.gcsafe.} =
         socket.send(payload)
       appState.broadcastLocked()
     sleep(int(DoneBroadcastSeconds * 1000.0))
+    if getEnv(CogameSaveTrajectoryUriEnv).len > 0:
+      appState.trajectory.writeEventsToUri(getEnv(CogameSaveTrajectoryUriEnv))
     logLine("writing replay and results")
     try:
       if runtimeConfig.replayUri.len > 0:
@@ -229,6 +250,11 @@ proc finishEpisode(runtimeConfig: RuntimeConfig) {.gcsafe.} =
 proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
   {.gcsafe.}:
     let cfg = appState.config
+    let trajectoryUri = getEnv(CogameSaveTrajectoryUriEnv)
+    if trajectoryUri.len > 0:
+      appState.trajectory = newDecisionTrajectory(getEnv("COWORLD_EPISODE_ID"),
+        "gridlock-" & $cfg.seed, "gridlock", getEnv("COWORLD_GAME_VERSION"),
+        getEnv("COWORLD_SOURCE_REVISION"))
     let gameStart = epochTime()
     let connectDeadline = gameStart + cfg.playerConnectTimeoutSeconds
     while epochTime() < connectDeadline:
@@ -298,7 +324,18 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
       var failure = ""
       withLock stateLock:
         applyDecision(appState, decision, turn)
+        let startTick = appState.game.tick
         failure = runTurn(appState.game, decision.plans)
+        if trajectoryUri.len > 0:
+          for slot in 0 ..< Seats:
+            let selected = decision.selectedAttemptIds[slot]
+            appState.trajectory.recordDecision($startTick & "-" & $slot, $slot,
+              requests[slot].view, decision.attempts[slot], selected,
+              planJson(appState.game.plans[slot]),
+              (if selected.isSome: asAccepted else: asFallback),
+              terminal = appState.game.tick >= cfg.episodeTicks,
+              fallbackOrigin = (if selected.isSome: none(string)
+                else: some("engine-" & $appState.game.plans[slot].source)))
         appState.broadcastLocked()
         for slot, socket in appState.playerSockets:
           socket.send(turnFrame(appState.game, slot))
@@ -480,13 +517,16 @@ proc websocketHandler(websocket: WebSocket, event: WebSocketEvent,
               policyKindOf(appState.seats.seats[slot])
             logLine("slot ", slot, " registered (",
               appState.game.policyKinds[slot], ")")
+        elif payload{"type"}.getStr() == "attempt_started":
+          withLock stateLock:
+            appState.attemptEvidence[slot] = copy(payload)
         elif payload{"type"}.getStr() == "action":
           let actionId = payload{"id"}
           if not actionId.isNil and actionId.kind == JInt:
             withLock stateLock:
               appState.actionReplies[slot] = message.data
       except CatchableError as error:
-        logLine("ignoring bad player frame: ", error.msg)
+        logLine("ignoring bad private player frame")
     of ErrorEvent:
       discard
     of CloseEvent:

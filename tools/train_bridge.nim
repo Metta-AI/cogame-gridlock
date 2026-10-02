@@ -2,7 +2,7 @@
 ## nim c -d:release --path:src -o:/tmp/gridlock-train-bridge tools/train_bridge.nim
 
 import std/[hashes, json, os]
-import gridlock/[sim, llm]
+import gridlock/[sim, llm, decision]
 
 var
   game: Sim
@@ -11,10 +11,13 @@ var
   seat: int
   manifestPath: string
   variant: string
+  languageMode = false
+  operatorPrompt = ""
+  rejectedAttempts = 0
 
-proc currentDecision(): JsonNode =
-  let view = $buildView(game, seat)
-  %*{"kind": "decision", "game": "gridlock", "decision_id": decisionId,
+proc currentDecision(retry = false): JsonNode =
+  let view = userMessage(SeatRequest(prompt: operatorPrompt, viewJson: $buildView(game, seat)), retry)
+  result = %*{"kind": "decision", "game": "gridlock", "decision_id": decisionId,
     "seat": seat, "engine_seat": seat,
     "turn": game.tick div game.config.turnTicks,
     "semantic_view": {"system": SystemPrompt, "user": view},
@@ -24,7 +27,14 @@ proc currentDecision(): JsonNode =
     "speech_messages": [],
     "action_schema": {"type": "object", "properties": {
       "choice": {"type": "integer", "minimum": 0, "maximum": 3}},
-      "required": ["choice"]}, "typed_question": newJNull()}
+      "required": ["choice"]}, "typed_question": newJNull(), "inference_mode": newJNull()}
+  if languageMode:
+    result["inference_mode"] = %"text_action"
+    result["action_schema"] = %*{"type": "object", "properties": {
+      "congestion_weight": {"type": "integer"}, "patience": {"type": "integer"},
+      "dispatch": {"type": "integer"}, "spread": {"type": "integer"},
+      "corridor": {}, "avoid": {}, "priority": {"type": "string"},
+      "note": {"type": "string"}, "say": {"type": "string"}}, "minProperties": 1}
 
 proc reset(command: JsonNode): JsonNode =
   doAssert command["players"].getInt() == Seats
@@ -46,6 +56,7 @@ proc reset(command: JsonNode): JsonNode =
   game.keepSnapshots = false
   decisionId = 0
   seat = 0
+  rejectedAttempts = 0
   currentDecision()
 
 proc encode(): JsonNode =
@@ -85,15 +96,34 @@ proc encode(): JsonNode =
 
 proc step(command: JsonNode): JsonNode =
   if command["decision_id"].getInt() != decisionId:
-    return %*{"kind": "rejected", "reason": "stale decision"}
-  let action = parseJson(command["response"].getStr())
-  let choice = action["choice"].getInt()
-  doAssert choice in 0 .. 3
-  var plan =
-    if choice == 1: beelinePlan()
-    else: dispatcherPlan(baselineInput(game, seat))
-  if choice == 2: plan.dispatch = 40
-  if choice == 3: plan.dispatch = 60
+    return %*{"kind": "rejected", "reason": "stale decision", "observation": currentDecision()}
+  let privateView = buildView(game, seat)
+  var plan: RoutingPlan
+  var consumed = false
+  var action: JsonNode
+  if languageMode:
+    let frame = %*{"type": "action", "protocol": PlayerProtocol, "id": decisionId,
+      "source": "llm", "response": command["response"]}
+    let proposal = playerProposal($frame, decisionId, seat,
+      SeatSnapshot(view: privateView, baseline: baselineInput(privateView),
+        previous: game.plans[seat]))
+    if proposal.kind == pkRejected:
+      inc rejectedAttempts
+      if rejectedAttempts == 1:
+        return %*{"kind": "rejected", "reason": "invalid private player reply",
+          "observation": currentDecision(retry = true)}
+      plan = dispatcherPlan(baselineInput(privateView))
+      consumed = true
+    else: plan = proposal.plan
+    action = planJson(plan)
+  else:
+    action = parseJson(command["response"].getStr())
+    let choice = action["choice"].getInt()
+    doAssert choice in 0 .. 3
+    plan = if choice == 1: beelinePlan() else: dispatcherPlan(baselineInput(privateView))
+    if choice == 2: plan.dispatch = 40
+    if choice == 3: plan.dispatch = 60
+  rejectedAttempts = 0
   doAssert planIsLegal(plan)
   plans[seat] = plan
   inc decisionId
@@ -115,11 +145,18 @@ proc step(command: JsonNode): JsonNode =
     %*{"kind": "terminal", "scores": scoresBySeat,
       "utilities": utilities}
   else: currentDecision()
-  %*{"kind": "accepted", "action": action, "observation": observation}
+  result = %*{"kind": (if consumed: "consumed_rejection" else: "accepted"),
+    "action": action, "observation": observation}
+  if consumed: result["reason"] = %"invalid private player reply"
 
 when isMainModule:
   let args = commandLineParams()
-  if args.len != 2: quit("usage: gridlock-train-bridge MANIFEST [default|rush]", 1)
+  if args.len notin 2 .. 4:
+    quit("usage: gridlock-train-bridge MANIFEST VARIANT [--language [OPERATOR_PROMPT]]", 1)
+  if args.len >= 3:
+    doAssert args[2] == "--language"
+    languageMode = true
+  if args.len == 4: operatorPrompt = args[3]
   manifestPath = absolutePath(args[0])
   variant = args[1]
   doAssert variant in ["default", "rush"]
@@ -128,7 +165,9 @@ when isMainModule:
     let response = case command["kind"].getStr()
       of "reset": reset(command)
       of "encode": encode()
-      of "teacher": %*{"response": $(%*{"choice": 0})}
+      of "teacher": %*{"response": $(if languageMode:
+        planJson(dispatcherPlan(baselineInput(buildView(game, seat))))
+        else: %*{"choice": 0})}
       of "step": step(command)
       else: raise newException(ValueError, "unknown command")
     stdout.writeLine($response)

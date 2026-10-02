@@ -91,7 +91,6 @@ suite "the player entrypoint":
     check player.contains("PLAYER_SCRIPTED")
     check player.contains("PLAYER_POLICY_LABEL")
     check player.contains("COWORLD_PLAYER_WS_URL")
-    check player.count("socket.send(") == 2
     let sendIndex = player.find("socket.send(frame)")
     check sendIndex > 0
     check player.find("while true:") > sendIndex

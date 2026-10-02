@@ -1,7 +1,8 @@
 ## Game-owned decision exchange, plan repair, fallback, and turn timing.
 ## Model calls and candidate ranking live in ordinary player policies.
 
-import std/[json, monotimes, times]
+import std/[json, monotimes, options, times]
+import bitworld/decision_trajectory
 import types, view, plan, baselines
 
 const
@@ -24,9 +25,61 @@ type
   PlayerDecision* = object
     plans*: array[Seats, RoutingPlan]
     fallbacks*: seq[PlayerFallback]
+    attempts*: array[Seats, seq[DecisionAttempt]]
+    selectedAttemptIds*: array[Seats, Option[string]]
 
   DecisionExchange* = proc (requests: seq[JsonNode], timeoutMs: int):
     seq[string] {.gcsafe.}
+
+type
+  ProposalKind* = enum pkAccepted, pkReportedFallback, pkRejected
+  PlayerProposal* = object
+    kind*: ProposalKind
+    plan*: RoutingPlan
+    evidence*: DecisionAttempt
+    cause*: FallbackCause
+
+proc playerProposal*(raw: string, requestId, seat: int,
+    snapshot: SeatSnapshot): PlayerProposal =
+  ## Shared hosted/language parser boundary; installation remains engine-owned.
+  result.evidence = newDecisionAttempt($seat & "-" & $requestId, "external", aoUnknown)
+  result.evidence.response = %raw
+  result.evidence.rawResponse = %raw
+  try:
+    let reply = parseJson(raw)
+    if reply.hasKey("training_attempt"):
+      result.evidence = readAttemptEvidence(reply["training_attempt"])
+    if reply["type"].getStr() == "attempt_timeout":
+      raise newException(GridlockError, "player plan timed out after model request")
+    if reply["type"].getStr() != "action" or
+        reply["protocol"].getStr() != PlayerProtocol or
+        reply["id"].getInt() != requestId:
+      raise newException(GridlockError, "player action envelope mismatch")
+    if reply{"source"}.getStr() == "fallback":
+      result.kind = pkReportedFallback
+      result.cause = case reply{"cause"}.getStr()
+        of "no_credentials": fcNoCredentials
+        of "timeout": fcTimeout
+        else: fcTransportError
+      result.evidence.rejectionReason = some("player policy reported fallback")
+      return
+    if reply{"source"}.getStr() != "llm":
+      raise newException(GridlockError, "player action source must be llm")
+    if reply.hasKey("response"):
+      result.plan = parsePlan(reply["response"].getStr(), snapshot.previous)
+    else:
+      let proposed = reply["plan"]
+      if proposed.kind != JObject or not hasAnyPlanKey(proposed):
+        raise newException(GridlockError, "player action has no plan fields")
+      result.plan = repairPlan(proposed, snapshot.previous)
+    result.plan.source = psLlm
+    result.kind = pkAccepted
+    result.evidence.accepted = true
+    result.evidence.parsedAction = planJson(result.plan)
+  except CatchableError as error:
+    result.kind = pkRejected
+    result.cause = fcParseError
+    result.evidence.rejectionReason = some(error.msg)
 
 proc decidePlayers*(seats: array[Seats, SeatSnapshot], turn: int,
     guarded: bool, turnBudgetSeconds: float,
@@ -75,45 +128,34 @@ proc decidePlayers*(seats: array[Seats, SeatSnapshot], turn: int,
     let latencyMs = max(0, (getMonoTime() - started).inMilliseconds.int)
     var retry: seq[int]
     for position, seat in pending:
-      var failure = ""
       if position >= replies.len or replies[position].len == 0:
+        var missing = newDecisionAttempt($seat & "-" & $requests[position]["id"].getInt(),
+          "external", aoUnknown)
+        missing.rejectionReason = some("player plan timed out")
+        result.attempts[seat].add(missing)
         result.fallbacks.add(PlayerFallback(seat: seat, attempt: attempt,
           cause: fcTimeout, detail: "player plan timed out"))
         retry.add(seat)
         continue
-      try:
-        let reply = parseJson(replies[position])
-        if reply["type"].getStr() != "action" or
-            reply["protocol"].getStr() != PlayerProtocol or
-            reply["id"].getInt() != requests[position]["id"].getInt():
-          raise newException(GridlockError, "player action envelope mismatch")
-        if reply{"source"}.getStr() == "fallback":
-          let cause =
-            case reply{"cause"}.getStr()
-            of "no_credentials": fcNoCredentials
-            of "timeout": fcTimeout
-            else: fcTransportError
-          result.fallbacks.add(PlayerFallback(seat: seat, attempt: attempt,
-            cause: cause, detail: "player policy reported fallback"))
-          if cause != fcNoCredentials:
-            retry.add(seat)
-          else:
-            result.plans[seat] = dispatcherPlan(seats[seat].baseline)
-            result.plans[seat].source = psFallback
-          continue
-        if reply{"source"}.getStr() != "llm":
-          raise newException(GridlockError, "player action source must be llm")
-        let rawPlan = reply["plan"]
-        if rawPlan.kind != JObject or not hasAnyPlanKey(rawPlan):
-          raise newException(GridlockError, "player action has no plan fields")
-        result.plans[seat] = repairPlan(rawPlan, seats[seat].previous)
-        result.plans[seat].source = psLlm
+      let proposal = playerProposal(replies[position],
+        requests[position]["id"].getInt(), seat, seats[seat])
+      result.attempts[seat].add(proposal.evidence)
+      case proposal.kind
+      of pkAccepted:
+        result.plans[seat] = proposal.plan
         result.plans[seat].latencyMs = latencyMs
-      except CatchableError as error:
-        failure = error.msg
-      if failure.len > 0:
+        result.selectedAttemptIds[seat] = some(proposal.evidence.attemptId)
+      of pkReportedFallback:
         result.fallbacks.add(PlayerFallback(seat: seat, attempt: attempt,
-          cause: fcParseError, detail: cleanLine(failure, MaxDetailRunes)))
+          cause: proposal.cause, detail: "player policy reported fallback"))
+        if proposal.cause != fcNoCredentials:
+          retry.add(seat)
+        else:
+          result.plans[seat] = dispatcherPlan(seats[seat].baseline)
+          result.plans[seat].source = psFallback
+      of pkRejected:
+        result.fallbacks.add(PlayerFallback(seat: seat, attempt: attempt,
+          cause: proposal.cause, detail: "invalid private player reply"))
         retry.add(seat)
     pending = retry
 

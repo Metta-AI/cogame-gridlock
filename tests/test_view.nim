@@ -204,3 +204,28 @@ suite "two name spaces":
         if seen[j] == seen[i]: novel = false
       if novel: inc novelCount
     check novelCount > 1
+
+
+suite "private decision cadence and teacher inputs":
+  test "the second decision exposes the installed first plan and next turn":
+    var game = newTestSim(960, 42)
+    check buildView(game, 0)["you"]["last_plan"].kind == JNull
+    var plans = scriptedPlansFor(game, allKinds(skDispatcher))
+    plans[0].dispatch = 43
+    discard runTurn(game, plans)
+    let view = buildView(game, 0)
+    check view["you"]["last_plan"] == planJson(plans[0])
+    check view["turn"].getInt() == 1
+    check view["turn_start_tick"].getInt() == game.tick
+    check view["turn_end_tick"].getInt() == game.tick + game.config.turnTicks
+    check view["tick_hz"].getInt() == TargetFps
+
+  test "teacher view inputs match the published observation over whole turns":
+    var game = newTestSim(960, 47)
+    while game.tick < game.config.episodeTicks:
+      var plans: array[Seats, RoutingPlan]
+      for seat in 0 ..< Seats:
+        let view = buildView(game, seat)
+        check baselineInput(view) == baselineInput(game, seat)
+        plans[seat] = dispatcherPlan(baselineInput(view))
+      check runTurn(game, plans).len == 0
