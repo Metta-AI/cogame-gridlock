@@ -30,8 +30,8 @@ COPY . .
 # shows only the last line before it. That cost a CI round.
 RUN set -eux; \
   rm -f nim.cfg; \
-  nim c --hints:off -d:emscripten replay-viewer/gridlock_replay.nim; \
-  nim c --hints:off --path:src -o:/tmp/gen_wire_constants \
+  nim c --parallelBuild:1 --hints:off -d:emscripten replay-viewer/gridlock_replay.nim; \
+  nim c --parallelBuild:1 --hints:off --path:src -o:/tmp/gen_wire_constants \
     tools/gen_wire_constants.nim; \
   /tmp/gen_wire_constants > replay-viewer/dist/wire_constants.js; \
   cp client/broadcast_core.js replay-viewer/dist/broadcast_core.js; \

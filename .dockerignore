@@ -8,3 +8,4 @@ tmp
 *.jsonl
 **/qualification*.json
 **/corpus
+**/manifest.json

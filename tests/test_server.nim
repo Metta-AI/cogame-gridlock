@@ -58,22 +58,6 @@ suite "routes":
   test "/global answers a Ping with a Pong":
     check serverSource.contains("websocket.send(message.data, Pong)")
 
-  test "the shutdown grace keeps healthz and global answering":
-    check serverSource.contains("ShutdownGraceSeconds = 20.0")
-    let finish = serverSource.find("proc finishEpisode")
-    check finish > 0
-    let body = serverSource[finish .. ^1]
-    ## Order: broadcast done -> write the replay -> write the results -> grace.
-    let done = body.find("\"done\": true")
-    let replay = body.find("writeReplay")
-    let results = body.find("writeResults")
-    let grace = body.find("ShutdownGraceSeconds")
-    check done >= 0
-    check replay > done
-    check results > replay
-    check grace > results
-    check body.find("quit(0)") > grace
-
   test "a fallback event is dated with the turn its plans are for":
     ## `sim.turn` is only assigned in installPlans, which runTurn calls AFTER
     ## the decision is applied — so the fallback record must take the loop's
@@ -92,25 +76,41 @@ suite "auth and registration":
     var seats = initRoster(@["t0", "t1", "t2", "t3"])
     seats.applyRegistration(1, %*{
       "type": "register", "kind": "prompt",
-      "scripted": newJNull(), "policy": "gridlock-backstreet"})
+      "scripted": newJNull(), "policy": "gridlock-backstreet", "prompt": "private"})
     check seats.seats[1].registered
     check seats.seats[1].kind == pkPrompt
     check seats.seats[1].policyLabel == "gridlock-backstreet"
     check policyKindOf(seats.seats[1]) == "llm"
 
-  test "a frame that is not a register frame is ignored":
+  test "invalid registration frames fail without changing the seat":
     var seats = initRoster(@["t0", "t1", "t2", "t3"])
-    seats.applyRegistration(0, %*{"type": "chat", "prompt": "hello"})
+    expect GridlockError:
+      seats.applyRegistration(0, %*{"type": "chat", "prompt": "hello"})
     check not seats.seats[0].registered
-    seats.applyRegistration(0, newJNull())
+    expect GridlockError:
+      seats.applyRegistration(0, newJNull())
     check not seats.seats[0].registered
+
+  test "malformed private registration cannot partially switch a seat to model control":
+    var seats = initRoster(@["t0", "t1", "t2", "t3"])
+    expect GridlockError:
+      seats.applyRegistration(0, %*{"type": "register", "kind": "prompt",
+        "scripted": newJNull(), "policy": "valid", "prompt": {"private": "sentinel"}})
+    check not seats.seats[0].registered
+    check seats.seats[0].kind == pkScripted
+    check effectiveScriptNow(seats.seats[0]) == skDispatcher
+    expect GridlockError:
+      seats.applyRegistration(0, %*{"type": "register", "kind": "prompt",
+        "scripted": newJNull(), "policy": "", "prompt": "private"})
+    check not seats.seats[0].registered
+    check seats.seats[0].kind == pkScripted
 
   test "the policy label is rune-capped at 48":
     var seats = initRoster(@["t0", "t1", "t2", "t3"])
     var label = ""
     for _ in 0 ..< 300:
       label.add("z")
-    seats.applyRegistration(0, %*{"type": "register", "policy": label})
+    seats.applyRegistration(0, %*{"type": "register", "kind": "prompt", "scripted": newJNull(), "prompt": "private", "policy": label})
     check seats.seats[0].policyLabel.len == MaxPolicyRunes
 
 suite "artifact sinks":

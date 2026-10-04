@@ -1,33 +1,12 @@
-## Claude-backed player policy. The game sends a private view and receives an
-## ordinary routing plan; only this player-side module calls the model.
-##
-## Gridlock is a simultaneous-decision game. The server sends all private
-## decisions before waiting; each player owns its model transport. At most
-## four calls are in flight. First attempt 14 s; on timeout / transport error / non-JSON / no
-## usable plan, ONE retry at 6 s with a hint; then the `dispatcher` scripted
-## plan and a `fallback` record. Worst case 14 + 6 = 20 s inside the 22 s
-## per-turn budget.
-##
-## Credentials, in order: Bedrock sidecar -> ANTHROPIC_API_KEY ->
-## ANTHROPIC_API_KEY_URI -> none (disabled, instant fallback, one log line).
-## With no credentials at all the whole episode finishes on the scripted
-## layer, which is what makes offline certification and the docker smoke work.
+## Native sidecar policy for one canonical private routing view.
+## The game owns parsing, repairs, retry windows and installed plans.
 
-import std/[json, math, options, os, strutils, times]
-import bitworld/[runtime, decision_trajectory]
-import curly
+import std/[base64, json, math, monotimes, options, os, sets, strutils, tables, unicode]
+import bitworld/[decision_trajectory, native_http]
 import types
-import plan
-import baselines
-import view
-import state
 
 const
-  AnthropicUrl = "https://api.anthropic.com/v1/messages"
   AnthropicVersion = "2023-06-01"
-  BedrockAnthropicVersion = "bedrock-2023-05-31"
-  FirstAttemptSeconds* = 14
-  RetryAttemptSeconds* = 6
 
 const SystemPrompt* = """
 You are the dispatcher for one parcel fleet of 50 vans in a city shared with three
@@ -66,149 +45,33 @@ way to build a jam when it is not. dispatch below 100 is the only way to reduce 
 traffic; it costs you deliveries in the short run and buys a moving city back.
 """
 
+
 type
-  LlmTransport = enum
-    ltNone, ltSidecar, ltBedrock, ltAnthropic
-
-  LlmRequest* = object
-    seat*: int
-    url*: string
-    body*: string
-
-  LlmReply* = object
-    seat*: int
-    text*: string
-    error*: string
-
-  BatchProc* = proc (requests: seq[LlmRequest], timeoutSeconds: int):
-    seq[LlmReply] {.closure.}
-    ## Test seam only. Deliberately NOT gcsafe: a test closure records the
-    ## in-flight window of every seat in a batch, which needs captured state,
-    ## and the production path never installs one — the server's turn loop
-    ## already runs inside a `{.gcsafe.}:` block.
-
-  FallbackRecord* = object
-    seat*: int
-    attempt*: int
-    cause*: FallbackCause
-    detail*: string
-
   SeatRequest* = object
-    ## Everything one seat needs for one turn, snapshotted out of the sim so
-    ## the slow part runs without the state lock.
     prompt*: string
     viewJson*: string
-    baseline*: BaselineInput
-    scripted*: ScriptKind
-    previous*: RoutingPlan
-
-  TurnDecision* = object
-    plans*: array[Seats, RoutingPlan]
-    fallbacks*: seq[FallbackRecord]
-    llmSeats*: int
 
   LlmClient* = ref object
-    curl: Curly
-    transport: LlmTransport
-    apiKey: string
     sidecarEndpoint: string
-    bedrockEndpoint: string
-    bedrockModels: seq[string]
-    bedrockModel: int
-    bedrockToken: string
     model*: string
     maxOutputTokens*: int
-    turnBudgetSeconds*: float
-      ## The outer per-turn deadline decideAll holds itself to. 0 disables
-      ## it, which is what the offline test client runs with.
     disabled*: bool
     temperature*: float
     lastAttempt*: DecisionAttempt
-    batchOverride*: BatchProc
-      ## Test seam: when set, decideAll drives this instead of libcurl, so
-      ## tests can observe the in-flight window of every seat in a batch.
-
-proc resolveApiKey(): string =
-  result = strutils.strip(getEnv("ANTHROPIC_API_KEY"))
-  if result.len > 0:
-    return
-  let uri = strutils.strip(getEnv("ANTHROPIC_API_KEY_URI"))
-  if uri.len == 0:
-    return ""
-  try:
-    result = strutils.strip(readCogameUri(uri, "ANTHROPIC_API_KEY_URI"))
-  except CatchableError as error:
-    logLine("llm: failed to fetch ANTHROPIC_API_KEY_URI: ", error.msg)
-    result = ""
-
-proc bedrockModelIds(): seq[string] =
-  ## `us.anthropic.claude-sonnet-4-6` is deliberately NOT in this ladder: it
-  ## times out on every sidecar call and one throttle cascades into scripted
-  ## fallbacks (playbook gotcha, raid round 2, 2026-08-23).
-  let pinned = strutils.strip(getEnv("BEDROCK_MODEL"))
-  if pinned.len > 0:
-    return @[pinned]
-  @[
-    "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-    "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-  ]
-
-proc tryNextBedrockModel(client: LlmClient, why: string): bool =
-  if client.transport != ltBedrock or
-      client.bedrockModel + 1 >= client.bedrockModels.len:
-    return false
-  inc client.bedrockModel
-  logLine("llm: ", client.bedrockModels[client.bedrockModel - 1],
-    " unusable (", why, "); falling back to ",
-    client.bedrockModels[client.bedrockModel])
-  true
-
-proc bedrockUrl(client: LlmClient): string =
-  client.bedrockEndpoint & "/model/" &
-    client.bedrockModels[client.bedrockModel] & "/invoke"
 
 proc newLlmClient*(maxOutputTokens: int, model: string): LlmClient =
-  result = LlmClient(model: model, maxOutputTokens: maxOutputTokens,
-    temperature: parseFloat(getEnv("COWORLD_LLM_TEMPERATURE", "0.4")))
+  result = LlmClient(model: getEnv("COWORLD_LLM_MODEL", model),
+    maxOutputTokens: maxOutputTokens,
+    temperature: parseFloat(getEnv("COWORLD_LLM_TEMPERATURE", "0.4")),
+    sidecarEndpoint: getEnv("COWORLD_LLM_ENDPOINT").strip().strip(chars = {'/'}, leading = false))
   if classify(result.temperature) in {fcNan, fcInf, fcNegInf} or
       result.temperature < 0 or result.temperature > 1:
     raise newException(GridlockError, "COWORLD_LLM_TEMPERATURE must be finite and in [0, 1]")
-  let sidecarEndpoint = getEnv("COWORLD_LLM_ENDPOINT").strip()
-  if sidecarEndpoint.len > 0:
-    result.transport = ltSidecar
-    result.sidecarEndpoint = sidecarEndpoint.strip(chars = {'/'}, leading = false)
-    result.model = getEnv("COWORLD_LLM_MODEL", "anthropic/claude-haiku-4.5")
-    result.curl = newCurly()
-    return
-  let bedrockEndpoint = strutils.strip(getEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME"))
-  let bedrockToken = strutils.strip(getEnv("AWS_BEARER_TOKEN_BEDROCK"))
-  if bedrockEndpoint.len > 0 or bedrockToken.len > 0:
-    let region = getEnv("AWS_REGION", getEnv("AWS_DEFAULT_REGION", "us-west-2"))
-    let endpoint =
-      if bedrockEndpoint.len > 0: bedrockEndpoint
-      else: "https://bedrock-runtime." & region & ".amazonaws.com"
-    result.transport = ltBedrock
-    result.bedrockEndpoint = endpoint.strip(chars = {'/'}, leading = false)
-    result.bedrockModels = bedrockModelIds()
-    result.bedrockToken = bedrockToken
-    result.curl = newCurly()
-    logLine("llm: bedrock transport, url ", result.bedrockUrl())
-    return
-  result.apiKey = resolveApiKey()
-  if result.apiKey.len > 0:
-    result.transport = ltAnthropic
-    result.curl = newCurly()
-    logLine("llm: anthropic transport, model ", result.model)
-  else:
-    result.transport = ltNone
-    result.disabled = true
-    logLine("llm: no LLM credentials; falling back to the scripted layer")
-
-proc newOfflineLlmClient*(batch: BatchProc): LlmClient =
-  ## A client with no transport but a batch hook — the shape the engine tests
-  ## drive.
-  LlmClient(transport: ltNone, disabled: false, maxOutputTokens: 900,
-    model: "test", batchOverride: batch)
+  if result.maxOutputTokens <= 0:
+    raise newException(GridlockError, "PLAYER_MAX_OUTPUT_TOKENS must be positive")
+  if result.model.len == 0:
+    raise newException(GridlockError, "native model must not be empty")
+  result.disabled = result.sidecarEndpoint.len == 0
 
 proc userMessage*(request: SeatRequest, retryHint: bool): string =
   result = clipRunes(strutils.strip(request.prompt), 4000)
@@ -221,216 +84,171 @@ proc userMessage*(request: SeatRequest, retryHint: bool): string =
       "congestion_weight, patience, dispatch, spread, corridor, avoid, " &
       "priority, note and say.")
 
+
 proc requestFor(client: LlmClient, system, user: string, slot: int):
     tuple[url: string, headers: HttpHeaders, body: string] =
-  var body = %*{
-    "max_tokens": client.maxOutputTokens,
-    "temperature": client.temperature,
-    "system": system,
-    "messages": [{"role": "user", "content": user}]
-  }
-  var headers: HttpHeaders
-  if client.transport == ltSidecar and slot >= 0:
-    headers["X-Coworld-Player-Slot"] = $slot
-  headers["content-type"] = "application/json"
-  if client.transport == ltBedrock:
-    body["anthropic_version"] = %BedrockAnthropicVersion
-    if client.bedrockToken.len > 0:
-      headers["authorization"] = "Bearer " & client.bedrockToken
-    result.url = client.bedrockUrl()
-  elif client.transport == ltSidecar:
-    body["model"] = %client.model
-    headers["anthropic-version"] = AnthropicVersion
-    result.url = client.sidecarEndpoint & "/v1/messages"
-  else:
-    body["model"] = %client.model
-    ## No `output_config.effort`: Haiku 4.5 rejects the whole request with a
-    ## 400 when it is present.
-    headers["x-api-key"] = client.apiKey
-    headers["anthropic-version"] = AnthropicVersion
-    result.url = AnthropicUrl
-  result.headers = headers
+  if slot < 0 or slot >= Seats:
+    raise newException(GridlockError, "native player slot is outside the game seats")
+  let body = %*{"max_tokens": client.maxOutputTokens,
+    "temperature": client.temperature, "model": client.model,
+    "system": system, "messages": [{"role": "user", "content": user}]}
+  result.headers["content-type"] = "application/json"
+  result.headers["anthropic-version"] = AnthropicVersion
+  result.headers["X-Coworld-Player-Slot"] = $slot
+  result.url = client.sidecarEndpoint & "/v1/messages"
   result.body = $body
 
-proc textOf(client: LlmClient, response: Response, error, url: string):
-    string =
-  if error.len > 0:
-    raise newException(GridlockError, "llm transport: " & error)
-  if response.code == 401 or response.code == 403:
-    let detail = clipRunes(response.body, MaxErrorBodyRunes)
-    if "Model access is denied" in response.body and
-        client.tryNextBedrockModel("no model access"):
-      raise newException(GridlockError, "bedrock model access denied: " & detail)
-    client.disabled = true
-    raise newException(GridlockError,
-      "llm auth failed (" & $response.code & ") at " & url & ": " & detail)
-  if response.code == 429:
-    let detail = clipRunes(response.body, MaxErrorHeadRunes)
-    discard client.tryNextBedrockModel("throttled")
-    raise newException(GridlockError, "llm throttled (429): " & detail)
-  if response.code < 200 or response.code >= 300:
-    raise newException(GridlockError, "llm error " & $response.code & ": " &
-      clipRunes(response.body, MaxErrorHeadRunes))
-  let payload = parseJson(response.body)
-  if payload{"stop_reason"}.getStr() == "refusal":
-    raise newException(GridlockError, "model refusal")
-  let content = payload{"content"}
-  if content != nil and content.kind == JArray:
-    for contentBlock in content:
-      if contentBlock{"type"}.getStr() == "text":
-        result.add(contentBlock{"text"}.getStr())
-  if payload{"stop_reason"}.getStr() == "max_tokens" and '{' notin result:
-    raise newException(GridlockError,
-      "reply cut off at max_tokens before any JSON")
-
-proc causeOf(message: string): FallbackCause =
-  let lower = message.toLowerAscii()
-  if "timeout" in lower or "timed out" in lower: fcTimeout
-  elif "transport" in lower or "auth" in lower or "throttled" in lower or
-      "llm error" in lower: fcTransportError
-  else: fcParseError
-
-proc runBatch(client: LlmClient, requests: seq[LlmRequest],
-    timeoutSeconds: int): seq[LlmReply] =
-  ## ONE parallel batch. Every open seat's request is issued together.
-  if client.batchOverride != nil:
-    return client.batchOverride(requests, timeoutSeconds)
-  result = newSeq[LlmReply](requests.len)
-  var batch: RequestBatch
-  for i, request in requests:
-    let prepared = client.requestFor(SystemPrompt, "", request.seat)
-    batch.post(request.url, prepared.headers, request.body, $i)
-  let responses = client.curl.makeRequests(batch, timeoutSeconds)
-  for i in 0 ..< requests.len:
-    result[i] = LlmReply(seat: requests[i].seat)
-    try:
-      result[i].text = client.textOf(responses[i].response,
-        responses[i].error, requests[i].url)
-    except CatchableError as error:
-      result[i].error = error.msg
-
-proc decideAll*(client: LlmClient, seats: array[Seats, SeatRequest]):
-    TurnDecision =
-  ## One plan per seat. NEVER raises: any failure ends on the scripted
-  ## baseline so the episode always advances.
-  var open: seq[int]
-  for seat in 0 ..< Seats:
-    if seats[seat].scripted != skNone or client.disabled:
-      result.plans[seat] = scriptedPlan(seats[seat].baseline,
-        (if seats[seat].scripted == skNone: skDispatcher
-         else: seats[seat].scripted))
-      if seats[seat].scripted == skNone and client.disabled:
-        ## An LLM seat with no credentials IS a fallback: the note lists
-        ## `no_credentials` among the fallback causes, and recording the plan
-        ## as plain `scripted` would leave `results.fallback_turns` at zero
-        ## for a seat that never once played its own policy.
-        result.plans[seat].source = psFallback
-        result.fallbacks.add(FallbackRecord(seat: seat, attempt: 1,
-          cause: fcNoCredentials, detail: "no LLM credentials"))
-    else:
-      open.add(seat)
-  let turnStart = epochTime()
-  for attempt in 0 .. 1:
-    if open.len == 0 or client.disabled:
-      break
-    ## The outer per-turn deadline. The two attempt deadlines already sum to
-    ## 14 + 6 = 20 s inside the 22 s budget; this is what holds the bound
-    ## when an attempt overruns its own timeout, and it drops a retry that
-    ## could not finish inside the turn rather than starting it.
-    var timeout =
-      if attempt == 0: FirstAttemptSeconds else: RetryAttemptSeconds
-    if client.turnBudgetSeconds > 0.0:
-      let remaining = int(client.turnBudgetSeconds - (epochTime() - turnStart))
-      if remaining < 1:
-        logLine("llm: turn budget spent; skipping attempt ", attempt + 1)
-        break
-      if remaining < timeout:
-        timeout = remaining
-    var requests: seq[LlmRequest]
-    for seat in open:
-      let user = userMessage(seats[seat], attempt > 0)
-      let built = client.requestFor(SystemPrompt, user, -1)
-      requests.add(LlmRequest(seat: seat, url: built.url, body: built.body))
-    let attemptStart = epochTime()
-    let replies = runBatch(client, requests, timeout)
-    let latencyMs = int((epochTime() - attemptStart) * 1000.0)
-    var stillOpen: seq[int]
-    for i, seat in open:
-      var failure = ""
-      if i < replies.len and replies[i].error.len == 0:
-        try:
-          result.plans[seat] = parsePlan(replies[i].text, seats[seat].previous)
-          result.plans[seat].source = psLlm
-          result.plans[seat].latencyMs = latencyMs
-          inc result.llmSeats
-        except CatchableError as error:
-          failure = error.msg
-      else:
-        failure =
-          if i < replies.len: replies[i].error else: "no reply for this seat"
-      if failure.len > 0:
-        logLine("llm: seat ", seat, " attempt ", attempt + 1, " failed: ",
-          failure)
-        result.fallbacks.add(FallbackRecord(seat: seat, attempt: attempt + 1,
-          cause: causeOf(failure), detail: cleanLine(failure, MaxDetailRunes)))
-        stillOpen.add(seat)
-    open = stillOpen
-  let spentMs = int((epochTime() - turnStart) * 1000.0)
-  for seat in open:
-    logLine("llm: seat ", seat, " falling back to the dispatcher plan")
-    result.plans[seat] = dispatcherPlan(seats[seat].baseline)
-    result.plans[seat].source = psFallback
-    result.plans[seat].latencyMs = spentMs
-
-proc choosePromptPlan*(client: LlmClient, prompt: string, viewJson: string,
-    retryHint: bool, timeoutSeconds, slot: int, attemptId, policy: string,
-    beforeCall: proc(attempt: DecisionAttempt) {.closure.}): string =
-  ## The game owns text parsing, repair, retries, and actual plan installation.
-  let user = userMessage(SeatRequest(prompt: prompt, viewJson: viewJson), retryHint)
-  let request = client.requestFor(SystemPrompt, user, slot)
-  client.lastAttempt = newDecisionAttempt(attemptId, policy, aoModel)
-  client.lastAttempt.prompt = %*[{"role": "system", "content": SystemPrompt},
+proc completeText(client: LlmClient, system, user: string, slot: int,
+    deadline: MonoTime,
+    beforeCall: proc(attempt: DecisionAttempt) {.closure, gcsafe.}): string =
+  let request = client.requestFor(system, user, slot)
+  client.lastAttempt.prompt = %*[{"role": "system", "content": system},
     {"role": "user", "content": user}]
   client.lastAttempt.request = parseJson(request.body)
-  client.lastAttempt.model = some(if client.transport == ltBedrock:
-    client.bedrockModels[client.bedrockModel] else: client.model)
+  client.lastAttempt.model = some(client.model)
   client.lastAttempt.decoder = %*{"temperature": client.temperature,
     "max_tokens": client.maxOutputTokens}
   beforeCall(client.lastAttempt)
-  let callStarted = epochTime()
-  let response = client.curl.post(request.url, request.headers,
-    request.body, timeoutSeconds)
-  client.lastAttempt.latencyMs = some(max(0.0, (epochTime() - callStarted) * 1000))
-  client.lastAttempt.rawResponse = %response.body
-  if response.headers.contains("X-Softmax-Llm-Call-Id"):
-    client.lastAttempt.platformCallId = some(response.headers["X-Softmax-Llm-Call-Id"])
-  for header in ["X-Coworld-Checkpoint-Sha256", "X-Coworld-Tokenizer-Sha256",
-      "X-Coworld-Chat-Template-Sha256"]:
-    if response.headers.contains(header):
-      case header
-      of "X-Coworld-Checkpoint-Sha256": client.lastAttempt.modelIdentity = some(response.headers[header])
-      of "X-Coworld-Tokenizer-Sha256": client.lastAttempt.tokenizerIdentity = some(response.headers[header])
-      else: client.lastAttempt.chatTemplateSha256 = some(response.headers[header])
-  let text = client.textOf(response, "", request.url)
-  client.lastAttempt.response = %text
-  let payload = parseJson(response.body)
-  if payload.hasKey("usage"):
+  let response = performNativePost(request.url, request.headers, request.body, deadline)
+  client.lastAttempt.latencyMs = response.latencyMs
+  client.lastAttempt.responseReaderJoined = response.responseReaderJoined
+  let observedResponse = response.httpStatus.isSome or response.headerBytes.len > 0 or response.bodyBytes.len > 0
+  if observedResponse:
+    client.lastAttempt.responseBodyB64 = some(encode(response.bodyBytes))
+    client.lastAttempt.responseHeadersB64 = some(encode(response.headerBytes))
+    client.lastAttempt.responseComplete = some(response.transferComplete)
+    client.lastAttempt.httpStatus = response.httpStatus
+    if validateUtf8(response.bodyBytes) == -1:
+      client.lastAttempt.rawResponse = %response.bodyBytes
+  if validateUtf8(response.headerBytes) != -1:
+    raise newException(GridlockError, "received HTTP headers are not valid UTF-8")
+  var responseHeaders: HttpHeaders
+  var receivedHeaders = initTable[string, string]()
+  var identityHeaders = initHashSet[string]()
+  for line in response.headerBytes.splitLines():
+    if line.startsWith("HTTP/"):
+      responseHeaders.setLen(0)
+      receivedHeaders.clear()
+      identityHeaders.clear()
+    elif line.len > 0:
+      let colon = line.find(':')
+      if colon <= 0:
+        raise newException(GridlockError, "invalid received HTTP header")
+      let name = line[0 ..< colon]
+      let value = line[colon + 1 .. ^1].strip()
+      let normalized = name.toLowerAscii()
+      if normalized in ["request-id", "x-request-id", "x-softmax-llm-call-id",
+          "x-coworld-checkpoint-sha256", "x-coworld-tokenizer-sha256",
+          "x-coworld-chat-template-sha256"]:
+        if normalized in identityHeaders:
+          raise newException(GridlockError, "duplicate received identity header")
+        identityHeaders.incl(normalized)
+      responseHeaders.add((name, value))
+      receivedHeaders[name] = value
+  if observedResponse:
+    client.lastAttempt.responseHeaders = some(receivedHeaders)
+  if responseHeaders.contains("request-id") and responseHeaders.contains("x-request-id") and
+      responseHeaders["request-id"] != responseHeaders["x-request-id"]:
+    raise newException(GridlockError, "conflicting received request identity headers")
+  for key in ["request-id", "x-request-id"]:
+    if responseHeaders.contains(key):
+      client.lastAttempt.providerRequestId = some(responseHeaders[key])
+      break
+  for (header, field) in [
+      ("x-softmax-llm-call-id", "call"),
+      ("x-coworld-checkpoint-sha256", "model"),
+      ("x-coworld-tokenizer-sha256", "tokenizer"),
+      ("x-coworld-chat-template-sha256", "template")]:
+    if responseHeaders[header].len > 0:
+      case field
+      of "call":
+        let identity = responseHeaders[header]
+        if identity.len != 36:
+          raise newException(GridlockError, "received platform call identity is not a UUID")
+        for index, character in identity:
+          if index in [8, 13, 18, 23]:
+            if character != '-':
+              raise newException(GridlockError, "received platform call identity is not a UUID")
+          elif character notin {'0'..'9', 'a'..'f', 'A'..'F'}:
+            raise newException(GridlockError, "received platform call identity is not a UUID")
+        client.lastAttempt.platformCallId = some(identity)
+      of "model": client.lastAttempt.modelIdentity = some(responseHeaders[header])
+      of "tokenizer": client.lastAttempt.tokenizerIdentity = some(responseHeaders[header])
+      else: client.lastAttempt.chatTemplateSha256 = some(responseHeaders[header])
+  if response.kind != nhComplete:
+    raise newException(GridlockError, "native transport " & $response.kind)
+  let status = response.httpStatus.get()
+  if status == 401 or status == 403:
+    client.disabled = true
+    raise newException(GridlockError, "native inference auth failed (" & $status & ")")
+  if status == 429:
+    raise newException(GridlockError, "native inference throttled (429)")
+  if status < 200 or status >= 300:
+    raise newException(GridlockError, "native inference error " & $status)
+  let payload = parseJson(response.bodyBytes)
+  if payload.kind != JObject or payload["model"].kind != JString or
+      payload["content"].kind != JArray:
+    raise newException(GridlockError, "native response violates the completion schema")
+  client.lastAttempt.model = some(payload["model"].getStr())
+  case payload["stop_reason"].kind
+  of JString: client.lastAttempt.stopReason = some(payload["stop_reason"].getStr())
+  of JNull: discard
+  else: raise newException(GridlockError, "native stop reason must be text or null")
+  if payload.hasKey("usage") and payload["usage"].kind != JNull:
     let usage = payload["usage"]
+    if usage.kind != JObject or usage["input_tokens"].kind != JInt or
+        usage["output_tokens"].kind != JInt or usage["input_tokens"].getInt() < 0 or
+        usage["output_tokens"].getInt() < 0:
+      raise newException(GridlockError, "native usage must contain nonnegative integer counts")
     client.lastAttempt.inputTokens = some(usage["input_tokens"].getInt())
     client.lastAttempt.outputTokens = some(usage["output_tokens"].getInt())
-  if payload.hasKey("model"): client.lastAttempt.model = some(payload["model"].getStr())
-  client.lastAttempt.stopReason = some(payload["stop_reason"].getStr())
   if payload.hasKey("sampling_evidence") and payload["sampling_evidence"].kind != JNull:
     let sampling = payload["sampling_evidence"]
+    if sampling.kind != JObject or sampling["prompt_token_ids"].kind != JArray or
+        sampling["completion_token_ids"].kind != JArray or sampling["stop_reason"].kind != JString:
+      raise newException(GridlockError, "native sampling evidence violates the token schema")
     var promptIds, sampledIds: seq[int]
     var probabilities: seq[float]
-    for token in sampling["prompt_token_ids"]: promptIds.add(token.getInt())
-    for token in sampling["completion_token_ids"]: sampledIds.add(token.getInt())
+    for token in sampling["prompt_token_ids"]:
+      if token.kind != JInt or token.getInt() < 0:
+        raise newException(GridlockError, "native prompt token IDs must be nonnegative integers")
+      promptIds.add(token.getInt())
+    for token in sampling["completion_token_ids"]:
+      if token.kind != JInt or token.getInt() < 0:
+        raise newException(GridlockError, "native sampled token IDs must be nonnegative integers")
+      sampledIds.add(token.getInt())
+    if sampling["behavior_log_probs"].kind != JNull:
+      if sampling["behavior_log_probs"].kind != JArray:
+        raise newException(GridlockError, "native draw probabilities must be an array or null")
+      for probability in sampling["behavior_log_probs"]:
+        if probability.kind notin {JInt, JFloat} or
+            classify(probability.getFloat()) in {fcNan, fcInf, fcNegInf} or probability.getFloat() > 0:
+          raise newException(GridlockError, "native draw probabilities must be finite nonpositive numbers")
+        probabilities.add(probability.getFloat())
+      if probabilities.len != sampledIds.len:
+        raise newException(GridlockError, "native draw probabilities must match sampled token IDs")
     client.lastAttempt.promptTokenIds = some(promptIds)
     client.lastAttempt.sampledTokenIds = some(sampledIds)
     if sampling["behavior_log_probs"].kind != JNull:
-      for probability in sampling["behavior_log_probs"]: probabilities.add(probability.getFloat())
       client.lastAttempt.behaviorLogprobs = some(probabilities)
     client.lastAttempt.stopReason = some(sampling["stop_reason"].getStr())
-    client.lastAttempt.decoder["sampling_evidence"] = copy(sampling)
-  text
+  if payload{"stop_reason"}.getStr() == "refusal":
+    raise newException(GridlockError, "native inference refusal")
+  for contentBlock in payload["content"]:
+    if contentBlock.kind != JObject or contentBlock["type"].kind != JString:
+      raise newException(GridlockError, "native content block violates the completion schema")
+    if contentBlock["type"].getStr() == "text":
+      if contentBlock["text"].kind != JString:
+        raise newException(GridlockError, "native text content must be text")
+      result.add(contentBlock["text"].getStr())
+  client.lastAttempt.response = %result
+  if payload{"stop_reason"}.getStr() == "max_tokens" and '{' notin result:
+    raise newException(GridlockError, "native reply ended before a JSON action")
+
+
+proc choosePromptPlan*(client: LlmClient, prompt: string, viewJson: string,
+    retryHint: bool, deadline: MonoTime, slot: int, attemptId, policy: string,
+    beforeCall: proc(attempt: DecisionAttempt) {.closure, gcsafe.}): string =
+  let user = userMessage(SeatRequest(prompt: prompt, viewJson: viewJson), retryHint)
+  client.lastAttempt = newDecisionAttempt(attemptId, policy, aoModel)
+  client.completeText(SystemPrompt, user, slot, deadline, beforeCall)

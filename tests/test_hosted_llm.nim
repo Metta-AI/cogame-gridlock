@@ -16,3 +16,18 @@ block:
     doAssert not body.hasKey("anthropic_version")
     doAssert not body.hasKey("output_config")
   echo "hosted sidecar routing and seat attribution passed"
+
+import std/unittest
+import gridlock/roster
+
+suite "private prompt parity":
+  test "registration and hosted renderer agree after whitespace and rune limits":
+    var text = "  "
+    for _ in 0 .. 4000: text.add("雪")
+    text.add("  ")
+    var seats = initRoster(@["a", "b", "c", "d"])
+    seats.applyRegistration(0, %*{"type": "register", "kind": "prompt",
+      "scripted": newJNull(), "policy": "fixture", "prompt": text})
+    for retry in [false, true]:
+      check userMessage(SeatRequest(prompt: text, viewJson: "{}"), retry) ==
+        userMessage(SeatRequest(prompt: seats.seats[0].prompt, viewJson: "{}"), retry)

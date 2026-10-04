@@ -1,199 +1,9 @@
-## The turn loop against a fake LLM client: the parallel batch, the per-turn
-## budget, the budget guard, the wall-clock stop, sim faults, and no-shows.
-##
-## The fake client is the `batchOverride` seam on LlmClient — the same
-## decideAll path the server drives, with libcurl swapped out — so the test
-## can observe the IN-FLIGHT WINDOW of every seat in a batch.
+## Wall-clock guards, terminal outcomes and registration on the production engine.
 
-import std/[json, monotimes, os, strutils, unittest]
+import std/[json, monotimes, os, strutils, times, unittest]
 import support/helpers
 import gridlock/roster
 import gridlock/server
-
-type
-  Window = object
-    seat: int
-    startMs: int64
-    stopMs: int64
-
-proc nowMs(): int64 = getMonoTime().ticks div 1_000_000
-
-proc seatRequests(game: Sim, scripted: array[Seats, ScriptKind]):
-    array[Seats, SeatRequest] =
-  for seat in 0 ..< Seats:
-    result[seat] = SeatRequest(
-      prompt: (if scripted[seat] == skNone: "play well" else: ""),
-      viewJson: $buildView(game, seat),
-      baseline: baselineInput(game, seat),
-      scripted: scripted[seat],
-      previous: game.plans[seat])
-
-suite "one parallel batch per turn":
-  test "all four seats' calls go out together and their windows intersect":
-    var windows: seq[Window]
-    var batches = 0
-    var sizes: seq[int]
-    let client = newOfflineLlmClient(
-      proc (requests: seq[LlmRequest], timeoutSeconds: int): seq[LlmReply]
-          {.closure.} =
-        inc batches
-        sizes.add(requests.len)
-        let started = nowMs()
-        ## Every request in a batch is issued together: the fake holds them
-        ## all open for the same slice of wall clock, which is what
-        ## makeRequests does.
-        sleep(30)
-        let stopped = nowMs()
-        result = newSeq[LlmReply](requests.len)
-        for i, request in requests:
-          windows.add(Window(seat: request.seat, startMs: started,
-            stopMs: stopped))
-          result[i] = LlmReply(seat: request.seat,
-            text: fakeReplyPlan(40 + request.seat, 90)))
-    var game = newTestSim(960)
-    let decision = client.decideAll(seatRequests(game, allKinds(skNone)))
-    check batches == 1
-    check sizes == @[Seats]
-    check windows.len == Seats
-    for a in windows:
-      for b in windows:
-        check a.startMs < b.stopMs
-        check b.startMs < a.stopMs
-    check decision.llmSeats == Seats
-    for seat in 0 ..< Seats:
-      check decision.plans[seat].source == psLlm
-      check decision.plans[seat].congestionWeight == 40 + seat
-
-  test "every turn batches exactly four requests over a whole episode":
-    var sizes: seq[int]
-    let client = newOfflineLlmClient(
-      proc (requests: seq[LlmRequest], timeoutSeconds: int): seq[LlmReply]
-          {.closure.} =
-        sizes.add(requests.len)
-        result = newSeq[LlmReply](requests.len)
-        for i, request in requests:
-          result[i] = LlmReply(seat: request.seat,
-            text: fakeReplyPlan(50, 80)))
-    var game = newTestSim(960)
-    while game.tick < game.config.episodeTicks:
-      let decision = client.decideAll(seatRequests(game, allKinds(skNone)))
-      discard runTurn(game, decision.plans)
-    check sizes.len == 4
-    for size in sizes:
-      check size == Seats
-    check game.turnsLlm[0] == 4
-
-  test "scripted seats never enter the batch":
-    var seen: seq[int]
-    let client = newOfflineLlmClient(
-      proc (requests: seq[LlmRequest], timeoutSeconds: int): seq[LlmReply]
-          {.closure.} =
-        result = newSeq[LlmReply](requests.len)
-        for i, request in requests:
-          seen.add(request.seat)
-          result[i] = LlmReply(seat: request.seat,
-            text: fakeReplyPlan(20, 60)))
-    var game = newTestSim(960)
-    let decision = client.decideAll(seatRequests(game,
-      kindsOf(skNone, skDispatcher, skNone, skBeeline)))
-    check seen == @[0, 2]
-    check decision.plans[1].source == psScripted
-    check decision.plans[3].congestionWeight == 0
-
-  test "a recorded plan carries the batch's measured latency":
-    ## `latency_ms` is in the replay's plan record and in the note's event
-    ## table; it has to be the real wait, not a placeholder.
-    let client = newOfflineLlmClient(
-      proc (requests: seq[LlmRequest], timeoutSeconds: int): seq[LlmReply]
-          {.closure.} =
-        sleep(40)
-        result = newSeq[LlmReply](requests.len)
-        for i, request in requests:
-          result[i] = LlmReply(seat: request.seat,
-            text: fakeReplyPlan(35, 70)))
-    var game = newTestSim(960)
-    let decision = client.decideAll(seatRequests(game, allKinds(skNone)))
-    for seat in 0 ..< Seats:
-      check decision.plans[seat].source == psLlm
-      check decision.plans[seat].latencyMs >= 30
-    discard runTurn(game, decision.plans)
-    var planEvents = 0
-    for event in game.events:
-      if event.kind == sePlan:
-        inc planEvents
-        check event.body["latency_ms"].getInt() >= 30
-    check planEvents == Seats
-
-  test "a credential-less LLM seat records a fallback, not a scripted plan":
-    ## No credentials is one of the note's fallback causes. The plan is the
-    ## dispatcher plan either way; what this pins is that it is RECORDED as a
-    ## fallback, so phase 60 can count the seats that never played their own
-    ## policy.
-    let client = newOfflineLlmClient(nil)
-    client.disabled = true
-    var game = newTestSim(960)
-    let decision = client.decideAll(seatRequests(game,
-      kindsOf(skNone, skDispatcher, skNone, skBeeline)))
-    check decision.llmSeats == 0
-    check decision.fallbacks.len == 2
-    for record in decision.fallbacks:
-      check record.cause == fcNoCredentials
-    check decision.plans[0].source == psFallback
-    check decision.plans[2].source == psFallback
-    ## A seat that ASKED for a baseline is not a fallback: it is playing what
-    ## it registered.
-    check decision.plans[1].source == psScripted
-    check decision.plans[3].source == psScripted
-
-  test "a hung client is bounded by the two attempt deadlines":
-    ## The fake reports a timeout rather than actually hanging; what the test
-    ## pins is that decideAll makes at most two attempts and always returns.
-    var attempts = 0
-    var deadlines: seq[int]
-    let client = newOfflineLlmClient(
-      proc (requests: seq[LlmRequest], timeoutSeconds: int): seq[LlmReply]
-          {.closure.} =
-        inc attempts
-        deadlines.add(timeoutSeconds)
-        result = newSeq[LlmReply](requests.len)
-        for i, request in requests:
-          result[i] = LlmReply(seat: request.seat,
-            error: "llm transport: timed out"))
-    var game = newTestSim(960)
-    let decision = client.decideAll(seatRequests(game, allKinds(skNone)))
-    check attempts == 2
-    check deadlines == @[FirstAttemptSeconds, RetryAttemptSeconds]
-    check FirstAttemptSeconds + RetryAttemptSeconds <= 22
-    for seat in 0 ..< Seats:
-      check decision.plans[seat].source == psFallback
-      check planIsLegal(decision.plans[seat])
-
-  test "the outer per-turn deadline clamps an attempt and drops the retry":
-    ## The note lists "one outer per-turn deadline of 22.0 s" among the
-    ## bounded waits. It clamps each attempt to what is left of the turn
-    ## budget and refuses to start a retry that cannot finish inside it, so
-    ## the turn is bounded even if an attempt overruns its own timeout.
-    var deadlines: seq[int]
-    let client = newOfflineLlmClient(
-      proc (requests: seq[LlmRequest], timeoutSeconds: int): seq[LlmReply]
-          {.closure.} =
-        deadlines.add(timeoutSeconds)
-        sleep(1100)
-        result = newSeq[LlmReply](requests.len)
-        for i, request in requests:
-          result[i] = LlmReply(seat: request.seat,
-            error: "llm transport: timed out"))
-    client.turnBudgetSeconds = 2.0
-    var game = newTestSim(960)
-    let decision = client.decideAll(seatRequests(game, allKinds(skNone)))
-    ## One attempt only — the retry could not have finished inside the
-    ## budget — and that attempt was clamped from 14 s to what was left of it.
-    check deadlines.len == 1
-    check deadlines[0] >= 1
-    check deadlines[0] <= 2
-    for seat in 0 ..< Seats:
-      check decision.plans[seat].source == psFallback
-      check planIsLegal(decision.plans[seat])
 
 suite "wall-clock guards":
   test "the budget guard engages before two more turns would overrun":
@@ -306,17 +116,17 @@ suite "seats that misbehave":
     check policyKindOf(seats.seats[0]) == "scripted"
     ## Registering with neither field is the same thing.
     seats.applyRegistration(0, %*{"type": "register", "kind": "scripted",
-      "scripted": newJNull()})
+      "scripted": newJNull(), "policy": "test", "prompt": ""})
     check effectiveScript(seats.seats[0]) == skDispatcher
-    ## A prompt policy is a model seat without sending its prompt to the game.
+    ## The authoritative game retains the private prompt for evidence checks.
     seats.applyRegistration(1, %*{"type": "register", "kind": "prompt",
-      "scripted": newJNull(), "policy": "gridlock-flowwright"})
+      "scripted": newJNull(), "policy": "gridlock-flowwright", "scripted": newJNull(), "prompt": "private"})
     check effectiveScript(seats.seats[1]) == skNone
     check policyKindOf(seats.seats[1]) == "llm"
     check seats.seats[1].policyLabel == "gridlock-flowwright"
     ## And an explicit baseline name wins.
     seats.applyRegistration(2, %*{"type": "register", "kind": "scripted",
-      "scripted": "beeline"})
+      "scripted": "beeline", "policy": "test", "prompt": ""})
     check effectiveScript(seats.seats[2]) == skBeeline
     check policyKindOf(seats.seats[2]) == "scripted"
 
@@ -325,7 +135,7 @@ suite "seats that misbehave":
     ## source degrades to `dispatcher` and revives on reconnect."
     var seats = initRoster(@["a", "b", "c", "d"])
     seats.applyRegistration(0, %*{"type": "register",
-      "kind": "prompt", "policy": "gridlock-flowwright"})
+      "kind": "prompt", "policy": "gridlock-flowwright", "scripted": newJNull(), "prompt": "private"})
     ## The upgrade handler's two assignments.
     seats.seats[0].connected = true
     seats.seats[0].everConnected = true
@@ -343,7 +153,7 @@ suite "seats that misbehave":
     check effectiveScriptNow(seats.seats[3]) == skDispatcher
     ## A scripted seat plays its own baseline while it is connected, and
     ## degrades the same way when it drops: nobody is behind the seat.
-    seats.applyRegistration(1, %*{"type": "register", "scripted": "beeline"})
+    seats.applyRegistration(1, %*{"type": "register", "kind": "scripted", "scripted": "beeline", "policy": "test", "prompt": ""})
     seats.seats[1].connected = true
     seats.seats[1].everConnected = true
     check effectiveScriptNow(seats.seats[1]) == skBeeline
@@ -360,7 +170,8 @@ suite "seats that misbehave":
     let path = dir / "player_failure.json"
     removeFile(path)
     putEnv("COGAME_PLAYER_FAILURE_URI", "file://" & path)
-    declarePlayerFailure(2, "seat 2 never connected")
+    declarePlayerFailure(2, "seat 2 never connected",
+      getMonoTime() + initDuration(seconds = 5))
     delEnv("COGAME_PLAYER_FAILURE_URI")
     check fileExists(path)
     let payload = parseJson(readFile(path))
@@ -375,13 +186,13 @@ suite "seats that misbehave":
     check not seats.authorize(9, "t0")
     check not seats.authorize(1, "")
 
-  test "model registration contains no prompt or model secret":
+  test "private model registration freezes its policy prompt":
     var seats = initRoster(@["a", "b", "c", "d"])
-    seats.applyRegistration(0, %*{"type": "register", "kind": "external"})
+    seats.applyRegistration(0, %*{"type": "register", "kind": "external", "scripted": newJNull(), "policy": "test", "prompt": "private"})
     check seats.seats[0].registered
     check effectiveScript(seats.seats[0]) == skNone
     check policyKindOf(seats.seats[0]) == "llm"
     expect GridlockError:
       seats.applyRegistration(0, %*{"type": "register", "kind": "external",
-        "scripted": "beeline"})
+        "scripted": "beeline", "policy": "test", "prompt": ""})
     check effectiveScript(seats.seats[0]) == skNone

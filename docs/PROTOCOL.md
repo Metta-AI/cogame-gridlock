@@ -3,26 +3,27 @@
 Two surfaces: the **player** websocket (one per seat) and the **global** spectator stream plus the
 static replay bundle. Everything is UTF-8 JSON text.
 
-## Player — `gridlock.player.v2`
+## Player — `gridlock.player.v3`
 
 Connect to `ws://<host>:<port>/player?slot=N&token=T`. A bad slot or token is **403**; a second
-connection to a seat that already holds one is **409**.
+connection to a seat that already holds one, or admission after gameplay starts, is **409**.
 
 ### Register
 
 ```json
 {"type": "register", "kind": "scripted" | "prompt" | "external",
  "scripted": "dispatcher" | "beeline" | null,
- "policy": "<free label, <= 48 runes>"}
+ "policy": "<free label, <= 48 runes>", "prompt": "<private policy, <= 4000 runes>"}
 ```
 
 A missing registration plays `dispatcher`. A scripted player names its baseline. A prompt or external
-player does not send a prompt or credential to the game. Reconnecting restores its policy.
+player registers its private prompt for authoritative request validation. Credentials remain inside the player.
+Registration freezes before gameplay; a disconnected seat plays dispatcher.
 
 ### Welcome
 
 ```json
-{"type": "welcome", "protocol": "gridlock.player.v2", "slot": 0,
+{"type": "welcome", "protocol": "gridlock.player.v3", "slot": 0,
  "fleet": "Carbon", "colour": "#e07a3f", "turns": 20, "turn_seconds": 10}
 ```
 
@@ -34,21 +35,38 @@ repairs accepted plans against the previous plan and records the resolved result
 one complete routing plan in the normal action envelope, or an explicit fallback cause.
 
 ```json
-{"type": "decision", "protocol": "gridlock.player.v2", "id": 71,
- "slot": 0, "turn": 7, "attempt": 1, "timeout_ms": 14000,
- "view": { … the private view below … }}
+{"type": "decision", "protocol": "gridlock.player.v3", "decision_id": "7-0-1",
+ "slot": 0, "turn": 7, "attempt": 1, "transport": {"budget_ms": 14000, "cleanup_budget_ms": 5000},
+ "prompt": "<registered private policy>", "observation": { … the private view below … }}
 ```
 
 ```json
-{"type": "action", "protocol": "gridlock.player.v2", "id": 71,
- "source": "llm", "plan": { … the routing plan below … }}
+{"type": "action", "protocol": "gridlock.player.v3", "decision_id": "7-0-1",
+ "source": "llm", "action": { … the routing plan below … },
+ "training_attempt": { … exact native attempt evidence … }}
 ```
 
-A player without credentials returns `{"source":"fallback","cause":"no_credentials"}`
-in the same envelope. The game plays `dispatcher` and records the fallback. An invalid envelope,
-plan, or timed-out player also falls back after the retry. The game sends an informational `turn`
-frame after each resolved turn, then `{"done":true,"result":{…}}` before writing replay and
-results artifacts.
+The native reference player uses only `COWORLD_LLM_ENDPOINT`, its authenticated slot, and configured model.
+Before HTTP starts, it sends `attempt_started` with the issued `decision_id` and exact private
+`training_attempt`; response fields are null. Finished evidence retains actual body/header bytes,
+status, call identity, sampling metadata, and reader join. Received facts cannot be rewritten.
+A selected model response must match its received native body and parse to the submitted action.
+Fallback replies set `source: "fallback"`; the engine retains evidence and applies dispatcher after its retry budget.
+
+Every turn retains the original 22-second ceiling, with at most 14 seconds then 6 seconds.
+Transport budgets are outside the model prompt. All incoming frames are bounded to 16 MiB.
+
+Before sealing, the game sends each registered model seat a `stop` containing its latest
+`decision_id` (or null), an unpredictable `stop_id`, and remaining `cleanup_budget_ms`.
+The player cancels and joins its reader, then sends `stopped` with those identities,
+`worker_status: "joined" | "no_active_call"`, and its retained `attempts` array.
+The game retains immutable evidence and returns `evidence_received` with the echoed identities.
+That receipt completes the client's ownership; it does not attest platform model authority.
+Disconnected registered seats remain stop targets. Missing acknowledgements or readers produce
+private truncated trajectories and suppress normal public results/replay.
+
+An informational `turn` follows each applied turn. Successful joined completion sends
+`{"type":"final","done":true,"result":{…}}`. Private model metadata never enters public replay.
 
 ### The per-seat view
 
@@ -185,6 +203,11 @@ re-derived rather than transported.
 `COGAME_LOAD_REPLAY_URI`, `COGAME_PLAYER_FAILURE_URI`, `COGAME_EVENTS_URI` and
 `COGAME_METRICS_URI` (**`file://` only**, loudly rejected otherwise), `COGAME_HOST`, `COGAME_PORT`.
 
-At the end of an episode the server broadcasts `done` to every seat (3.0 s per-seat deadline),
-writes the replay, then writes the results — in that order — and keeps `/healthz` and `/global`
-answering for a 20 s shutdown grace before exiting 0.
+`COGAME_SAVE_TRAJECTORY_URI` is a private canonical event export. Runtime episode, registered
+game identity, package version, source revision, and image digest are supplied by trusted runner metadata.
+
+The game joins registered model owners before sealing. It writes the private trajectory first,
+then successful results and replay, within one absolute five-second artifact cleanup deadline.
+Private upload failure aborts later public writes. Signals seal private truncated evidence;
+runtime failures seal private failed evidence. The owned game thread joins before server exit.
+Successful completion retains up to 20 seconds of spectator grace, clipped to the episode budget.

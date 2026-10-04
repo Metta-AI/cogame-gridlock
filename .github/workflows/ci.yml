@@ -161,12 +161,39 @@ jobs:
             -o:/tmp/gridlock-train-bridge tools/train_bridge.nim
           python3 tools/test_train_bridge.py /tmp/gridlock-train-bridge
 
+      - name: Verify owned reference-player transport
+        run: |
+          nim c --hints:off -d:release --parallelBuild:1 --path:src \
+            -o:/tmp/gridlock-reference-player src/gridlock_player.nim
+          python3 -m venv /tmp/gridlock-transport-env
+          /tmp/gridlock-transport-env/bin/pip install 'websockets==15.0.1'
+          /tmp/gridlock-transport-env/bin/python tools/test_reference_player.py \
+            /tmp/gridlock-reference-player "$RUNNER_TEMP/gridlock-reference-player"
+
+      - name: Verify private native shutdown and trust boundaries
+        run: |
+          nim c --hints:off -d:release --parallelBuild:1 --path:src -o:/tmp/gridlock-game src/gridlock.nim
+          for mode in term int; do
+            /tmp/gridlock-transport-env/bin/python tools/test_native_interruption.py \
+              "$RUNNER_TEMP/gridlock-interruption-$mode" /tmp/gridlock-game /tmp/gridlock-reference-player "$mode"
+          done
+          for mode in finished_start request_rewrite finished_bytes_rewrite; do
+            /tmp/gridlock-transport-env/bin/python tools/test_native_chronology.py \
+              "$RUNNER_TEMP/gridlock-chronology-$mode" /tmp/gridlock-game /tmp/gridlock-reference-player "$mode"
+          done
+          for mode in success private503; do
+            /tmp/gridlock-transport-env/bin/python tools/test_native_artifacts.py \
+              "$RUNNER_TEMP/gridlock-artifacts-$mode" /tmp/gridlock-game /tmp/gridlock-reference-player "$mode"
+          done
+          /tmp/gridlock-transport-env/bin/python tools/test_native_failed.py \
+            "$RUNNER_TEMP/gridlock-failed" /tmp/gridlock-game /tmp/gridlock-reference-player
+
       - name: Verify private native decision trajectories
         run: |
           nim c --hints:off -d:release --path:src -o:/tmp/gridlock-game src/gridlock.nim
           nim c --hints:off -d:release --path:src -o:/tmp/gridlock-player src/gridlock_player.nim
           nim c --hints:off -d:release --path:src -o:/tmp/gridlock-replay-check tools/verify_replay.nim
-          python3 tools/test_native_trajectory.py /tmp/gridlock-game /tmp/gridlock-player /tmp/gridlock-replay-check
+          python3 tools/test_native_trajectory.py /tmp/gridlock-game /tmp/gridlock-player /tmp/gridlock-replay-check "$GITHUB_SHA"
 
       - name: Mixed ordinary player episode
         run: |
