@@ -46,7 +46,12 @@ for flow in (
                 "model": "fixture/served",
                 "stop_reason": "end_turn",
                 "content": [{"type": "text", "text": text}],
-                "usage": {"input_tokens": 12, "output_tokens": 4},
+                "usage": {
+                    "input_tokens": 32768
+                    if flow in {"sampled", "greedy-tokens"}
+                    else 12,
+                    "output_tokens": 4,
+                },
             }
             if flow == "greedy-null":
                 body["sampling_evidence"] = None
@@ -60,7 +65,7 @@ for flow in (
                     else "greedy",
                     "enable_thinking": False,
                     "max_new_tokens": request["max_tokens"],
-                    "max_sequence_length": 4096,
+                    "max_sequence_length": 65536,
                     "sampling_seed": 7,
                     "eos_token_ids": [4],
                     "prompt_token_ids": list(range(32768)),

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run mixed Gridlock players against a local Claude-shaped model stub."""
+"""Run mixed Gridlock players against a local native model fixture (zero receipt authority)."""
 
 import http.server
 import json
@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
 
 
@@ -46,7 +47,7 @@ class ModelHandler(http.server.BaseHTTPRequestHandler):
                             }
                         ),
                     }
-                ]
+                ],
             }
             self.calls.append(("prompt", None, request))
         else:
@@ -67,9 +68,8 @@ def main(game_bin, player_bin):
     model_port = free_port()
     game_port = free_port()
     server = http.server.ThreadingHTTPServer(("127.0.0.1", model_port), ModelHandler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    with tempfile.TemporaryDirectory(prefix="gridlock-player-smoke-") as work:
+    thread = threading.Thread(target=server.serve_forever)
+    with server, tempfile.TemporaryDirectory(prefix="gridlock-player-smoke-") as work:
         directory = Path(work)
         config = {
             "tokens": [f"token-{slot}" for slot in range(4)],
@@ -102,15 +102,27 @@ def main(game_bin, player_bin):
             "COGAME_RESULTS_URI": f"file://{directory / 'results.json'}",
             "COGAME_SAVE_REPLAY_URI": f"file://{directory / 'replay.json'}",
         }
-        processes = [
-            subprocess.Popen(
-                [game_bin],
-                env=game_env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-            )
-        ]
+        processes = []
+        thread.start()
         try:
+            processes.append(
+                subprocess.Popen(
+                    [game_bin],
+                    env=game_env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                )
+            )
+            ready = False
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                with socket.socket() as probe:
+                    ready = probe.connect_ex(("127.0.0.1", game_port)) == 0
+                if ready:
+                    break
+                assert processes[0].poll() is None, "game exited before readiness"
+                time.sleep(0.02)
+            assert ready, "game socket never opened"
             for slot in range(4):
                 player_env = env | {
                     "COWORLD_PLAYER_WS_URL": (
@@ -153,7 +165,10 @@ def main(game_bin, player_bin):
             for process in processes:
                 if process.poll() is None:
                     process.terminate()
+                process.wait(timeout=5)
             server.shutdown()
+            thread.join(timeout=2)
+            assert not thread.is_alive()
 
 
 if __name__ == "__main__":
