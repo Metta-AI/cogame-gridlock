@@ -105,14 +105,14 @@ results_props["final_turn"] = {"description": "Routing turn the episode stopped 
 results_props["seed"] = {"description": "The resolved episode seed.", "type": "integer"}
 
 player_protocol = (
- "gridlock.player.v2 - JSON text frames over COWORLD_PLAYER_WS_URL. Players register once with "
- "kind scripted, prompt, or external and an optional scripted baseline or policy label. No prompt or "
- "model credential enters the game. The game sends all model seats their private view in a "
- "decision frame with id, turn, attempt, and timeout_ms. The player replies with the same id and "
- "a complete ordinary routing plan, or an explicit fallback cause. The game owns two shared "
- "deadlines (14 seconds then 6 seconds), plan repair, scripted fallback, results, and replay. "
- "A no-show plays dispatcher. An informational turn frame follows each resolved turn; done and "
- "the results document close the episode. See docs/PROTOCOL.md for the full view and plan schema."
+ "gridlock.player.v3 - Authenticated per-seat JSON frames. Players register once with kind, scripted, "
+ "policy and private prompt before gameplay. Issued opaque decision_id, private observation, "
+ "and separate transport budgets bind native attempts. The game retains pre-request starts, "
+ "immutable real response evidence, normal parser equality and the original 22-second turn ceiling "
+ "(14 seconds then 6 seconds). Stop nonce, owned reader join and evidence_received precede sealing. "
+ "Unresolved owners produce private truncated evidence without normal results/replay. "
+ "Private trajectory writes precede successful results/replay within one cleanup deadline. "
+ "See docs/PROTOCOL.md for exact frames and schemas."
 )
 
 global_protocol = (

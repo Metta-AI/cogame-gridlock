@@ -2,9 +2,8 @@
 #   /bin/gridlock         the game server (default)
 #   /bin/gridlock-player  the thin register-and-listen player
 #
-# Both policy kinds live in the game server and are selected per seat by env
-# on the PLAYER container (PLAYER_PROMPT vs PLAYER_SCRIPTED=<name>), which is
-# why one image is enough.
+# PLAYER_PROMPT owns native sidecar calls in the player container.
+# PLAYER_SCRIPTED selects a game-owned baseline through registration.
 FROM debian:bookworm-slim AS build
 
 RUN apt-get update && \
@@ -49,9 +48,9 @@ RUN rm -f nim.cfg && \
     else echo "--path:\"$pkg\"" >> nim.cfg; fi; \
   done && \
   echo '--path:"src"' >> nim.cfg && \
-  nim c -d:release -d:useMalloc --opt:speed --stackTrace:on \
+  nim c --parallelBuild:1 -d:release -d:useMalloc --opt:speed --stackTrace:on \
     --nimcache:/tmp/gridlock-nimcache --out:gridlock src/gridlock.nim && \
-  nim c -d:release -d:useMalloc --opt:speed --stackTrace:on \
+  nim c --parallelBuild:1 -d:release -d:useMalloc --opt:speed --stackTrace:on \
     --nimcache:/tmp/gridlock-player-nimcache --out:gridlock-player \
     src/gridlock_player.nim
 

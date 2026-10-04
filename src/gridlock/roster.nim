@@ -2,10 +2,10 @@
 ## `src/ctf/roster.nim`, minus the reward/account machinery gridlock has no
 ## use for.
 ##
-## A seat that never registers, or registers without a kind, plays the
-## dispatcher baseline — a no-show never ends the episode.
+## A seat that never registers plays the dispatcher baseline. Malformed
+## registration is rejected before any frozen policy fields change.
 
-import std/json
+import std/[json, strutils]
 import types
 import baselines
 
@@ -17,6 +17,7 @@ type
     kind*: PolicyKind
     scripted*: ScriptKind
     policyLabel*: string
+    prompt*: string
     connected*: bool
     everConnected*: bool
     registered*: bool
@@ -37,25 +38,30 @@ proc authorize*(roster: Roster, slot: int, token: string): bool =
     roster.tokens[slot].len > 0 and roster.tokens[slot] == token
 
 proc applyRegistration*(roster: var Roster, slot: int, payload: JsonNode) =
-  ## `{"type":"register","kind":…,"scripted":…,"policy":…}`.
-  if slot < 0 or slot >= Seats:
-    return
-  if payload == nil or payload.kind != JObject:
-    return
-  if payload{"type"}.getStr("register") != "register":
-    return
+  ## Registration is a live protocol, separate from stored replay readers.
+  doAssert slot >= 0 and slot < Seats
+  if payload.kind != JObject:
+    raise newException(GridlockError, "invalid registration envelope")
+  for key in ["type", "kind", "scripted", "policy", "prompt"]:
+    if not payload.hasKey(key):
+      raise newException(GridlockError, "registration missing required " & key)
+  if payload["type"].kind != JString or payload["type"].getStr() != "register":
+    raise newException(GridlockError, "invalid registration envelope")
+  if payload["kind"].kind != JString or payload["policy"].kind != JString or
+      payload["prompt"].kind != JString:
+    raise newException(GridlockError, "registration kind, policy and prompt must be text")
   let kind =
-    case payload{"kind"}.getStr("scripted")
+    case payload["kind"].getStr()
     of "scripted": pkScripted
     of "prompt": pkPrompt
     of "external": pkExternal
     else: raise newException(GridlockError, "unknown player kind")
-  let scriptedNode = payload{"scripted"}
+  let scriptedNode = payload["scripted"]
   let scripted =
-    if scriptedNode == nil or scriptedNode.kind == JNull: skNone
-    elif scriptedNode.kind == JBool:
-      (if scriptedNode.getBool(): skDispatcher else: skNone)
-    else: parseScriptKind(scriptedNode.getStr())
+    case scriptedNode.kind
+    of JNull: skNone
+    of JString: parseScriptKind(scriptedNode.getStr())
+    else: raise newException(GridlockError, "scripted policy must be text or null")
   let resolvedScript =
     if kind == pkScripted:
       if scripted == skNone: skDispatcher else: scripted
@@ -64,12 +70,15 @@ proc applyRegistration*(roster: var Roster, slot: int, payload: JsonNode) =
         raise newException(GridlockError,
           "external or prompt player cannot register a scripted plan")
       skNone
-  roster.seats[slot].kind = kind
-  roster.seats[slot].scripted = resolvedScript
-  roster.seats[slot].policyLabel =
-    cleanLine(payload{"policy"}.getStr(), MaxPolicyRunes)
-  roster.seats[slot].registered = true
-
+  var registration = roster.seats[slot]
+  registration.kind = kind
+  registration.scripted = resolvedScript
+  registration.policyLabel = cleanLine(payload["policy"].getStr(), MaxPolicyRunes)
+  if registration.policyLabel.len == 0:
+    raise newException(GridlockError, "registered policy label must be nonempty")
+  registration.prompt = clipRunes(payload["prompt"].getStr().strip(), 4000)
+  registration.registered = true
+  roster.seats[slot] = registration
 proc policyKindOf*(seat: SeatRegistration): string =
   if seat.kind == pkScripted: "scripted" else: "llm"
 

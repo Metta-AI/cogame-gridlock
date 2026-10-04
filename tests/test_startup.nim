@@ -6,7 +6,6 @@ import std/[json, os, strutils, unittest]
 import support/helpers
 
 let entry = readSource("src/gridlock.nim")
-let player = readSource("src/gridlock_player.nim")
 
 suite "the game entrypoint":
   test "a missing COGAME_CONFIG_URI is a clean exit 2, not a traceback":
@@ -64,49 +63,3 @@ suite "the game entrypoint":
     check entry.contains("cannot load the city")
     expect GridlockError:
       discard loadCitySpec("definitely-not-a-city")
-
-suite "the player entrypoint":
-  test "an unreachable websocket exits 0 after a bounded retry":
-    check player.contains("ConnectAttempts")
-    check player.contains("ConnectDelayMs")
-    let index = player.find("for attempt in 1 .. ConnectAttempts:")
-    check index > 0
-    let body = player[index ..< min(player.len, index + 700)]
-    check body.contains("quit(0)") or player.contains("if not connected:\n    quit(0)")
-
-  test "the receive loop exits 0 on a dead socket":
-    ## whisky's receiveMessage RAISES on a close frame; mummy's send only
-    ## queues, so the game's quit(0) can outrun the flushed done frame.
-    check player.contains("except CatchableError as error:")
-    let index = player.find("while true:")
-    check index > 0
-    let tail = player[index .. ^1]
-    check tail.contains("except CatchableError as error:")
-    check tail.contains("exiting cleanly")
-    check player.strip().endsWith("quit(0)")
-
-  test "it registers and returns ordinary plans for private decisions":
-    check player.contains("\"type\": \"register\"")
-    check player.contains("PLAYER_PROMPT")
-    check player.contains("PLAYER_SCRIPTED")
-    check player.contains("PLAYER_POLICY_LABEL")
-    check player.contains("COWORLD_PLAYER_WS_URL")
-    let sendIndex = player.find("socket.send(frame)")
-    check sendIndex > 0
-    check player.find("while true:") > sendIndex
-    check player.contains("choosePromptPlan")
-    check player.contains("socket.send($reply)")
-    ## The game still chooses plans for scripted seats.
-    check not player.contains("dispatcherPlan")
-    check not player.contains("RoutingPlan")
-
-  test "a seat that sets neither variable registers as dispatcher":
-    ## README, docs/PROTOCOL.md and the design note all say so; substituting
-    ## a default PROMPT here would quietly make it an LLM seat.
-    check player.contains("\"dispatcher\"")
-    let index = player.find("let scripted =")
-    check index > 0
-    let body = player[index ..< min(player.len, index + 260)]
-    check body.contains("PLAYER_SCRIPTED")
-    check body.contains("\"dispatcher\"")
-    check not player.contains("DefaultPrompt")

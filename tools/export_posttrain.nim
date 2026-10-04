@@ -1,18 +1,21 @@
 ## Export complete native Gridlock matches as Metta post-training examples.
 ## nim c -d:release --path:src -o:/tmp/gridlock-posttrain tools/export_posttrain.nim
 
-import std/[json, options, os, osproc, strutils]
+import std/[json, options, os, strutils, sequtils]
 import gridlock/[sim, llm]
 import bitworld/decision_trajectory
 
 when isMainModule:
   let args = commandLineParams()
-  if args.len != 4:
-    quit("usage: gridlock-posttrain OUTPUT EPISODES VARIANT GAME_VERSION", 1)
+  if args.len != 5:
+    quit("usage: gridlock-posttrain OUTPUT EPISODES VARIANT GAME_VERSION SOURCE_REVISION", 1)
   let output = args[0]
   let episodes = parseInt(args[1])
   let variant = args[2]
   let gameVersion = args[3]
+  let revision = args[4]
+  if revision.len != 40 or revision.anyIt(it notin {'0'..'9', 'a'..'f'}):
+    quit("SOURCE_REVISION must be the reviewed immutable 40-hex source commit", 1)
   doAssert gameVersion.len > 0
   if episodes < 10:
     quit("at least ten games are required", 1)
@@ -26,10 +29,8 @@ when isMainModule:
   doAssert variantConfig.kind == JObject
   createDir(output)
   setFilePermissions(output, {fpUserRead, fpUserWrite, fpUserExec})
-  let revision = execProcess("git rev-parse HEAD").strip()
   var
-    trainRows: seq[string]
-    validationRows: seq[string]
+    teacherDecisions = 0
     trajectoryRows: seq[string]
     runs = newJArray()
   for seed in 1 .. episodes:
@@ -42,7 +43,7 @@ when isMainModule:
     let episodeId = "gridlock-" & variant & "-" & $seed
     let trajectory = newDecisionTrajectory(episodeId, "gridlock-" & $seed,
       "gridlock", gameVersion, revision)
-    var rows: seq[string]
+    var episodeDecisions = 0
     while game.tick < config.episodeTicks and not game.finished:
       let startTick = game.tick
       var views: array[Seats, JsonNode]
@@ -59,30 +60,14 @@ when isMainModule:
         plans[seat] = accepted
         var attempt = newDecisionAttempt($startTick & "-" & $seat & "-teacher",
           "dispatcher-view", aoTeacher)
-        attempt.model = some("dispatcher-view")
-        attempt.modelIdentity = some(revision)
         attempt.prompt = %*[{"role": "system", "content": SystemPrompt},
           {"role": "user", "content": view}]
-        attempt.request = %*{"teacher": "dispatcher-view", "observation": observation}
         attempt.response = %reply
-        attempt.rawResponse = %reply
-        attempt.decoder = %*{"method": "deterministic"}
         attempt.parsedAction = planJson(accepted)
         attempt.accepted = true
         attempts[seat] = attempt
-        rows.add($(%*{
-          "episode_id": "gridlock-" & variant & "-" & $seed,
-          "seed": "gridlock-" & $seed,
-          "decision_id": game.tick div config.turnTicks * Seats + seat,
-          "observation": observation,
-          "prompt": [
-            {"role": "system", "content": SystemPrompt},
-            {"role": "user", "content": view}
-          ],
-          "completion": [{"role": "assistant", "content": reply}],
-          "game": "gridlock",
-          "action_schema_revision": "gridlock-routing-v1"
-        }))
+        inc teacherDecisions
+        inc episodeDecisions
       let failure = runTurn(game, plans)
       doAssert failure.len == 0
       doAssert game.tick == min(config.episodeTicks, startTick + config.turnTicks)
@@ -94,31 +79,26 @@ when isMainModule:
     if not game.finished:
       endEpisode(game, "complete", "full_time")
     let outcome = resultsJson(game)
+    outcome["engine_rules_version"] = %GameVersion
     let scores = outcome["scores"]
     var outcomes = newJObject()
     for seat in 0 ..< Seats: outcomes[$seat] = scores[seat]
     trajectory.finish(esCompleted, outcome, outcomes)
     trajectoryRows.add(trajectory.eventsJsonl().strip())
-    if seed mod 5 == 0:
-      validationRows.add(rows)
-    else:
-      trainRows.add(rows)
-    runs.add(%*{"seed": seed, "turns": rows.len div Seats,
+    runs.add(%*{"seed": seed, "turns": episodeDecisions div Seats,
       "scores": scores})
-  writeFile(output / "train.jsonl", trainRows.join("\n") & "\n")
-  writeFile(output / "validation.jsonl", validationRows.join("\n") & "\n")
-  writeFile(output / "trajectories.jsonl", trajectoryRows.join("\n") & "\n")
-  writeFile(output / "manifest.json", pretty(%*{
+  writePrivate(output / "trajectories.jsonl", trajectoryRows.join("\n") & "\n")
+  writePrivate(output / "manifest.json", pretty(%*{
     "schema_version": 1,
     "game": "gridlock",
     "variant": variant,
     "source_revision": revision,
     "game_version": gameVersion,
+    "engine_rules_version": GameVersion,
     "teacher": "dispatcher-view",
-    "train_examples": trainRows.len,
-    "validation_examples": validationRows.len,
+    "episodes": episodes,
+    "decisions": teacherDecisions,
+    "dataset_path": "canonical-trajectories-only; shared reviewed importer owns splits",
     "runs": runs
   }) & "\n")
-  for name in ["train.jsonl", "validation.jsonl", "trajectories.jsonl", "manifest.json"]:
-    setFilePermissions(output / name, {fpUserRead, fpUserWrite})
-  echo "train=", trainRows.len, " validation=", validationRows.len
+  echo "episodes=", episodes, " decisions=", teacherDecisions

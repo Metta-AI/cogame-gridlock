@@ -1,149 +1,193 @@
-## Gridlock player: scripted or prompt policy over one private view and
-## the ordinary complete routing-plan action.
-##
-## To field your own policy, reuse this image and set PLAYER_PROMPT:
-##   coworld upload-policy <gridlock-image> --name my-gridlock \
-##     --run /bin/gridlock-player --secret-env PLAYER_PROMPT="<your strategy>"
+## Gridlock prompt/scripted player with one owned native reader per decision.
+import std/[atomics, json, locks, math, monotimes, options, os, strutils, times]
+import bitworld/[decision_trajectory, native_stop, native_websocket]
+import gridlock/[llm, plan, types]
 
-import std/[json, options, os, strutils, unicode]
-import whisky
-import bitworld/decision_trajectory
-import gridlock/[types, llm]
+type PlayerCall = object
+  socket: ptr NativeWebSocket
+  decisionId, observation, prompt, policy: string
+  slot, attempt: int
+  deadline: MonoTime
 
-const
-  ConnectAttempts = 40
-  ConnectDelayMs = 750
+var
+  worker: Thread[PlayerCall]
+  workerCreated = false
+  workerFinished: Atomic[bool]
+  evidenceLock: Lock
+  workerEvidence: string
+
+initLock(evidenceLock)
+
+proc joinWorker() =
+  if workerCreated:
+    joinThread(worker)
+    workerCreated = false
+
+proc runDecision(call: PlayerCall) {.gcsafe.} =
+  defer: workerFinished.store(true)
+  let observation = parseJson(call.observation)
+  var action = newJNull()
+  var source = "llm"
+  var attempt = newJNull()
+  var failure = ""
+  let client = newLlmClient(parseInt(getEnv("PLAYER_MAX_OUTPUT_TOKENS", "900")),
+    getEnv("PLAYER_MODEL", "anthropic/claude-haiku-4.5"))
+  if client.disabled:
+    source = "fallback"
+  else:
+    proc beforeCall(evidence: DecisionAttempt) =
+      let started = evidence.attemptEvidenceJson()
+      {.gcsafe.}:
+        withLock evidenceLock: workerEvidence = $started
+      let sent = call.socket[].sendNativeText($(%*{"type": "attempt_started",
+        "decision_id": call.decisionId, "training_attempt": started}), call.deadline)
+      if sent.kind != wsReady:
+        raise newException(GridlockError, "native attempt start was not delivered")
+    try:
+      let response = client.choosePromptPlan(call.prompt, call.observation,
+        call.attempt > 1, call.deadline, call.slot, call.decisionId & "-model",
+        call.policy, beforeCall)
+      let previous =
+        if observation["you"]["last_plan"].kind == JNull: defaultPlan()
+        else: planFromJson(observation["you"]["last_plan"])
+      action = planJson(parsePlan(response, previous))
+    except CatchableError as error:
+      failure = error.msg
+      echo "gridlock player: native policy call failed"
+      source = "fallback"
+      client.lastAttempt.rejectionReason = some(failure)
+    attempt = client.lastAttempt.attemptEvidenceJson()
+    {.gcsafe.}:
+      withLock evidenceLock: workerEvidence = $attempt
+  if not interruptionRequested():
+    discard call.socket[].sendNativeText($(%*{"type": "action", "decision_id": call.decisionId,
+      "protocol": PlayerProtocol, "action": action, "source": source,
+      "cause": "transport_error", "training_attempt": attempt}), call.deadline)
+
+proc stopAndAcknowledge(socket: NativeWebSocket, decisionId, stopId: JsonNode,
+    cleanupDeadline: MonoTime): bool =
+  ## Acknowledgement proves this owned worker joined, never a platform receipt.
+  requestNativeStop()
+  let hadWorker = workerCreated
+  joinWorker()
+  var attempts = newJArray()
+  withLock evidenceLock:
+    if workerEvidence.len > 0: attempts.add(parseJson(workerEvidence))
+  let sent = socket.sendCleanupText($(%*{"type": "stopped", "decision_id": decisionId, "stop_id": stopId,
+    "worker_status": (if hadWorker: "joined" else: "no_active_call"),
+    "attempts": attempts}), cleanupDeadline)
+  if sent.kind != wsReady: return false
+  while getMonoTime() < cleanupDeadline:
+    let received = socket.receiveCleanupText(cleanupDeadline)
+    if received.kind != wsMessage: return false
+    let frame = parseJson(received.data)
+    if frame["type"].getStr() == "evidence_received" and
+        frame["decision_id"] == decisionId and frame["stop_id"] == stopId:
+      return true
+  false
 
 when isMainModule:
-  let url = strutils.strip(getEnv("COWORLD_PLAYER_WS_URL"))
-  if url.len == 0:
-    quit("COWORLD_PLAYER_WS_URL is not set", 1)
-  let rawPrompt = getEnv("PLAYER_PROMPT")
-  let prompt =
-    if rawPrompt.runeLen > 4000: rawPrompt.runeSubStr(0, 4000)
-    else: rawPrompt
-  let kind =
-    if prompt.strip().len > 0: "prompt"
-    else: "scripted"
-  let scripted =
-    if strutils.strip(getEnv("PLAYER_SCRIPTED")).len > 0:
-      strutils.strip(getEnv("PLAYER_SCRIPTED"))
-    elif kind == "scripted":
-      "dispatcher"
-    else:
-      ""
-  let label = strutils.strip(getEnv("PLAYER_POLICY_LABEL"))
-  let client =
-    if kind == "prompt":
-      newLlmClient(parseInt(getEnv("PLAYER_MAX_OUTPUT_TOKENS", "900")),
-        getEnv("PLAYER_MODEL", "claude-haiku-4-5"))
-    else:
-      nil
-
-  let frame = $ %*{
-    "type": "register",
-    "kind": kind,
-    "scripted": (if scripted.len > 0: %scripted else: newJNull()),
-    "policy": (if label.len > 0: label
-               elif scripted.len > 0: "scripted:" & scripted
-               else: kind)}
-
-  ## Bounded connect retry: the game container and the player containers are
-  ## started together, so the first few dials legitimately fail.
-  var socket: WebSocket
-  var connected = false
-  for attempt in 1 .. ConnectAttempts:
-    try:
-      socket = newWebSocket(url)
-      connected = true
-      break
-    except CatchableError as error:
-      if attempt == ConnectAttempts:
-        echo "gridlock player: game unreachable after ", attempt,
-          " attempts (", error.msg, "); exiting cleanly"
-      else:
-        sleep(ConnectDelayMs)
-  if not connected:
-    quit(0)
-
-  try:
-    socket.send(frame)
-    echo "gridlock player: registered ", kind,
-      (if scripted.len > 0: ", scripted " & scripted else: "")
-  except CatchableError as error:
-    echo "gridlock player: register failed (", error.msg, "); exiting cleanly"
-    quit(0)
-
-  ## whisky's receiveMessage RAISES on a close frame or a truncated read (only
-  ## a timeout returns none), and mummy's send only queues — the game's
-  ## quit(0) can outrun the flushed done frame. Exit 0 on a dead socket.
+  installNativeStopHandlers()
+  let url = getEnv("COWORLD_PLAYER_WS_URL")
+  if url.len == 0: quit("COWORLD_PLAYER_WS_URL is not set", 1)
+  let prompt = clipRunes(getEnv("PLAYER_PROMPT").strip(), 4000)
+  let scriptedName = getEnv("PLAYER_SCRIPTED").strip()
+  let scripted = prompt.strip().len == 0 or scriptedName.len > 0
+  let policy = cleanLine(getEnv("PLAYER_POLICY_LABEL",
+    if scripted: "scripted:" & (if scriptedName.len > 0: scriptedName else: "dispatcher")
+    else: "prompt"), MaxPolicyRunes)
+  if policy.len == 0: raise newException(GridlockError, "registered policy label must be nonempty")
+  let timeout = parseFloat(getEnv("COWORLD_TIMEOUT_SECONDS", "1200"))
+  if timeout <= 0 or classify(timeout) in {fcNan, fcInf, fcNegInf}:
+    raise newException(GridlockError, "player timeout must be finite and positive")
+  let started = getMonoTime()
+  let playerDeadline = started + initDuration(nanoseconds = int64(timeout * 1_000_000_000))
+  let connection = connectNativeWebSocket(url,
+    min(playerDeadline, started + initDuration(seconds = 30)), 16 * 1024 * 1024)
+  case connection.kind
+  of wsInterrupted, wsDeadline: quit(0)
+  of wsReady: discard
+  else: raise newException(GridlockError, "native player connection failed")
+  var socket = connection.socket
+  var decisionId = newJNull()
+  var welcomed = false
+  var acknowledged = false
+  var finalDeadline: MonoTime
+  var cleanupBudgetMs = 0
+  var cleanupStarted = false
   try:
     while true:
-      let received = socket.receiveMessage()
-      if received.isNone:
-        echo "gridlock player: connection closed, exiting"
+      if workerCreated and workerFinished.load(): joinWorker()
+      if interruptionRequested() and not acknowledged:
+        finalDeadline = getMonoTime() + initDuration(milliseconds = cleanupBudgetMs)
+        cleanupStarted = true
+        acknowledged = stopAndAcknowledge(socket, decisionId, newJNull(), finalDeadline)
         break
-      let message = received.get()
-      if message.kind != TextMessage:
-        continue
-      try:
-        let payload = parseJson(message.data)
-        if payload{"done"}.getBool(false):
-          let scores = payload{"result", "scores"}
-          echo "gridlock player: final scores ",
-            (if scores == nil: "(none)" else: $scores)
-          break
-        case payload{"type"}.getStr()
-        of "welcome":
-          ## Nothing to send: the register frame went out on connect and
-          ## `applyRegistration` is idempotent, so a second copy would only
-          ## be a second frame the protocol does not describe.
-          echo "gridlock player: seated at slot ", payload{"slot"}.getInt(),
-            " as ", payload{"fleet"}.getStr()
-        of "turn":
-          discard
-        of "decision":
-          if kind == "scripted":
-            continue
-          if payload["protocol"].getStr() != PlayerProtocol:
-            raise newException(GridlockError,
-              "unexpected player protocol")
-          var reply = %*{
-            "type": "action",
-            "protocol": PlayerProtocol,
-            "id": payload["id"],
-            "source": "llm"
-          }
-          let timeoutSeconds = max(1,
-            payload["timeout_ms"].getInt() div 1000 - 1)
-          if client.disabled:
-            reply["source"] = %"fallback"
-            reply["cause"] = %"no_credentials"
-          else:
-            try:
-              proc attemptStarted(attempt: DecisionAttempt) =
-                socket.send($(%*{"type": "attempt_started", "id": payload["id"],
-                  "training_attempt": attempt.attemptEvidenceJson()}))
-              reply["response"] = %choosePromptPlan(client, prompt, $payload["view"],
-                payload["attempt"].getInt() > 1, timeoutSeconds, payload["slot"].getInt(),
-                $payload["slot"].getInt() & "-" & $payload["id"].getInt(),
-                (if label.len > 0: label else: "prompt"), attemptStarted)
-              reply["training_attempt"] = client.lastAttempt.attemptEvidenceJson()
-            except CatchableError as error:
-              client.lastAttempt.rejectionReason = some(error.msg)
-              reply["training_attempt"] = client.lastAttempt.attemptEvidenceJson()
-              echo "gridlock player: policy call failed"
-              reply["source"] = %"fallback"
-              reply["cause"] = %"transport_error"
-          socket.send($reply)
-        else:
-          discard
-      except CatchableError as error:
-        echo "gridlock player: ignoring bad private frame"
-  except CatchableError as error:
-    echo "gridlock player: socket closed (", error.msg, "); exiting cleanly"
-  try:
-    socket.close()
-  except CatchableError:
-    discard
-  quit(0)
+      if getMonoTime() >= playerDeadline: break
+      let received = socket.receiveNativeText(min(playerDeadline,
+        getMonoTime() + initDuration(milliseconds = 50)))
+      case received.kind
+      of wsDeadline, wsInterrupted: continue
+      of wsClosed: break
+      of wsMessage: discard
+      else: raise newException(GridlockError, "native player socket failed")
+      let payload = parseJson(received.data)
+      case payload["type"].getStr()
+      of "welcome":
+        if welcomed: raise newException(GridlockError, "duplicate player welcome")
+        if payload["protocol"].getStr() != PlayerProtocol:
+          raise newException(GridlockError, "unexpected player protocol")
+        welcomed = true
+        let registered = socket.sendNativeText($(%*{"type": "register",
+          "kind": (if scripted: "scripted" else: "prompt"),
+          "scripted": (if scripted: %(if scriptedName.len > 0: scriptedName else: "dispatcher") else: newJNull()),
+          "prompt": prompt, "policy": policy}), playerDeadline)
+        if registered.kind != wsReady:
+          raise newException(GridlockError, "player registration was not delivered")
+        echo "gridlock player: seated at slot ", payload["slot"].getInt()
+      of "decision":
+        if not welcomed or acknowledged or scripted:
+          raise newException(GridlockError, "decision received outside registered model ownership")
+        if payload["protocol"].getStr() != PlayerProtocol:
+          raise newException(GridlockError, "unexpected player protocol")
+        let receivedAt = getMonoTime()
+        let budget = payload["transport"]["budget_ms"].getInt()
+        if budget <= 0: raise newException(GridlockError, "decision transport budget must be positive")
+        cleanupBudgetMs = payload["transport"]["cleanup_budget_ms"].getInt()
+        if cleanupBudgetMs < 0: raise newException(GridlockError, "cleanup budget cannot be negative")
+        let issuedId = payload["decision_id"]
+        if issuedId.kind != JString or issuedId.getStr().len == 0:
+          raise newException(GridlockError, "decision identity must be a nonempty string")
+        joinWorker()
+        # Preserve the previous operation's identity and final bytes when stop wins
+        # while joining it. No new decision may clear that owned evidence.
+        if interruptionRequested(): break
+        decisionId = issuedId
+        withLock evidenceLock: workerEvidence.setLen(0)
+        workerFinished.store(false)
+        createThread(worker, runDecision, PlayerCall(socket: socket.addr,
+          decisionId: decisionId.getStr(), observation: $payload["observation"],
+          prompt: prompt, policy: policy, slot: payload["slot"].getInt(),
+          attempt: payload["attempt"].getInt(),
+          deadline: min(playerDeadline, receivedAt + initDuration(milliseconds = budget))))
+        workerCreated = true
+      of "stop":
+        finalDeadline = getMonoTime() + initDuration(milliseconds = payload["cleanup_budget_ms"].getInt())
+        cleanupStarted = true
+        acknowledged = stopAndAcknowledge(socket, payload["decision_id"], payload["stop_id"], finalDeadline)
+        break  # Confirmed evidence delivery finishes this client's ownership.
+      of "final":
+        if not acknowledged:
+          finalDeadline = getMonoTime() + initDuration(milliseconds = cleanupBudgetMs)
+          cleanupStarted = true
+          acknowledged = stopAndAcknowledge(socket, decisionId, newJNull(), finalDeadline)
+        break
+      of "state", "turn", "evidence_received": discard
+      else: raise newException(GridlockError, "unknown player frame")
+  finally:
+    requestNativeStop()
+    joinWorker()
+    if not cleanupStarted:
+      finalDeadline = getMonoTime() + initDuration(milliseconds = cleanupBudgetMs)
+      discard stopAndAcknowledge(socket, decisionId, newJNull(), finalDeadline)
+    closeNativeWebSocket(socket)

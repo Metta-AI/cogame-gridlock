@@ -54,7 +54,7 @@ const
     ## message becomes `fallback.detail`, so the cut is on runes.
 
   ReplayProtocol* = "gridlock.replay.v1"
-  PlayerProtocol* = "gridlock.player.v2"
+  PlayerProtocol* = "gridlock.player.v3"
   ReplayFormatVersion* = 1
 
   FleetAliases*: array[Seats, string] =

@@ -38,13 +38,17 @@ mkdir -p "${output_dir}"
 
 export PATH="$HOME/.nimby/nim/bin:$PATH"
 
-if command -v emcc >/dev/null 2>&1 && command -v nim >/dev/null 2>&1; then
+pinned_emscripten="$(sed -n 's/^FROM emscripten\/emsdk:\([^ ]*\).*/\1/p' "$repo_dir/Dockerfile.replay-viewer")"
+pinned_nim="$(sed -n 's/.*nimby use \([0-9.]*\).*/\1/p' "$repo_dir/Dockerfile.replay-viewer")"
+if command -v emcc >/dev/null 2>&1 && command -v nim >/dev/null 2>&1 &&
+   [[ "$(emcc --version | sed -n '1s/.*) \([0-9.]*\).*/\1/p')" == "$pinned_emscripten" ]] &&
+   [[ "$(nim --version | sed -n '1s/^Nim Compiler Version \([^ ]*\).*/\1/p')" == "$pinned_nim" ]]; then
   # Local toolchain: build in place with the same recipe the container uses.
-  (cd "${repo_dir}" && nim c --hints:off -d:emscripten \
+  (cd "${repo_dir}" && nim c --parallelBuild:1 --hints:off -d:emscripten \
     replay-viewer/gridlock_replay.nim)
   # Compile, THEN run: `nim c -r ... > file` sends nim's own error text into
   # the redirect and a broken build looks silent.
-  (cd "${repo_dir}" && nim c --hints:off --path:src \
+  (cd "${repo_dir}" && nim c --parallelBuild:1 --hints:off --path:src \
     -o:/tmp/gridlock_gen_wire tools/gen_wire_constants.nim)
   /tmp/gridlock_gen_wire > "${repo_dir}/replay-viewer/dist/wire_constants.js"
   cp "${repo_dir}/client/broadcast_core.js" \

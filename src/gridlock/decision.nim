@@ -2,7 +2,7 @@
 ## Model calls and candidate ranking live in ordinary player policies.
 
 import std/[json, monotimes, options, times]
-import bitworld/decision_trajectory
+import bitworld/[decision_trajectory, native_stop]
 import types, view, plan, baselines
 
 const
@@ -12,6 +12,7 @@ const
 type
   SeatSnapshot* = object
     view*: JsonNode
+    prompt*: string
     baseline*: BaselineInput
     scripted*: ScriptKind
     previous*: RoutingPlan
@@ -39,15 +40,14 @@ type
     evidence*: DecisionAttempt
     cause*: FallbackCause
 
-proc playerProposal*(raw: string, requestId, seat: int,
+proc playerProposal*(raw: string, requestId: string, seat: int,
     snapshot: SeatSnapshot): PlayerProposal =
   ## Shared hosted/language parser boundary; installation remains engine-owned.
   result.evidence = newDecisionAttempt($seat & "-" & $requestId, "external", aoUnknown)
   result.evidence.response = %raw
-  result.evidence.rawResponse = %raw
   try:
     let reply = parseJson(raw)
-    if reply.hasKey("training_attempt"):
+    if reply.hasKey("training_attempt") and reply["training_attempt"].kind != JNull:
       result.evidence = readAttemptEvidence(reply["training_attempt"])
       if result.evidence.origin in {aoTeacher, aoHuman}:
         result.evidence.origin = aoUnknown
@@ -55,7 +55,7 @@ proc playerProposal*(raw: string, requestId, seat: int,
       raise newException(GridlockError, "player plan timed out after model request")
     if reply["type"].getStr() != "action" or
         reply["protocol"].getStr() != PlayerProtocol or
-        reply["id"].getInt() != requestId:
+        reply["decision_id"].getStr() != requestId:
       raise newException(GridlockError, "player action envelope mismatch")
     if reply{"source"}.getStr() == "fallback":
       result.kind = pkReportedFallback
@@ -67,17 +67,35 @@ proc playerProposal*(raw: string, requestId, seat: int,
       return
     if reply{"source"}.getStr() != "llm":
       raise newException(GridlockError, "player action source must be llm")
-    if reply.hasKey("response"):
-      result.plan = parsePlan(reply["response"].getStr(), snapshot.previous)
-    else:
-      let proposed = reply["plan"]
-      if proposed.kind != JObject or not hasAnyPlanKey(proposed):
+    let proposed = reply["action"]
+    case proposed.kind
+    of JString:
+      result.plan = parsePlan(proposed.getStr(), snapshot.previous)
+    of JObject:
+      if not hasAnyPlanKey(proposed):
         raise newException(GridlockError, "player action has no plan fields")
       result.plan = repairPlan(proposed, snapshot.previous)
+    else:
+      raise newException(GridlockError, "player action must be a routing object or reply text")
     result.plan.source = psLlm
     if result.evidence.origin == aoModel:
       if result.evidence.response.kind != JString:
         raise newException(GridlockError, "model attempt response must be text")
+      if result.evidence.responseComplete != some(true) or
+          result.evidence.responseReaderJoined != some(true) or
+          result.evidence.httpStatus != some(200) or
+          result.evidence.rawResponse.kind != JString or result.evidence.model.isNone or
+          result.evidence.rejectionReason.isSome:
+        raise newException(GridlockError, "model action requires its successful complete joined native response")
+      let served = parseJson(result.evidence.rawResponse.getStr())
+      if served.kind != JObject or served["content"].kind != JArray or
+          served["model"] != %result.evidence.model.get():
+        raise newException(GridlockError, "selected model differs from received native body")
+      var text = ""
+      for contentBlock in served["content"]:
+        if contentBlock["type"].getStr() == "text": text.add(contentBlock["text"].getStr())
+      if %text != result.evidence.response:
+        raise newException(GridlockError, "selected response differs from received native body")
       let sampled = parsePlan(result.evidence.response.getStr(), snapshot.previous)
       result.evidence.parsedAction = planJson(sampled)
       if result.evidence.parsedAction != planJson(result.plan):
@@ -112,7 +130,7 @@ proc decidePlayers*(seats: array[Seats, SeatSnapshot], turn: int,
 
   let turnStart = getMonoTime()
   for attempt in 1 .. 2:
-    if pending.len == 0:
+    if pending.len == 0 or interruptionRequested():
       break
     let remainingMs = int(turnBudgetSeconds * 1000.0) -
       (getMonoTime() - turnStart).inMilliseconds.int
@@ -126,12 +144,13 @@ proc decidePlayers*(seats: array[Seats, SeatSnapshot], turn: int,
       requests.add(%*{
         "type": "decision",
         "protocol": PlayerProtocol,
-        "id": turn * 10 + attempt,
+        "decision_id": $turn & "-" & $seat & "-" & $attempt,
         "slot": seat,
         "turn": turn,
         "attempt": attempt,
-        "timeout_ms": timeoutMs,
-        "view": seats[seat].view
+        "transport": {"budget_ms": timeoutMs, "cleanup_budget_ms": 5000},
+        "observation": seats[seat].view,
+        "prompt": seats[seat].prompt
       })
     let started = getMonoTime()
     let replies = exchange(requests, timeoutMs)
@@ -139,7 +158,7 @@ proc decidePlayers*(seats: array[Seats, SeatSnapshot], turn: int,
     var retry: seq[int]
     for position, seat in pending:
       if position >= replies.len or replies[position].len == 0:
-        var missing = newDecisionAttempt($seat & "-" & $requests[position]["id"].getInt(),
+        var missing = newDecisionAttempt($seat & "-" & requests[position]["decision_id"].getStr(),
           "external", aoUnknown)
         missing.rejectionReason = some("player plan timed out")
         result.attempts[seat].add(missing)
@@ -148,7 +167,7 @@ proc decidePlayers*(seats: array[Seats, SeatSnapshot], turn: int,
         retry.add(seat)
         continue
       let proposal = playerProposal(replies[position],
-        requests[position]["id"].getInt(), seat, seats[seat])
+        requests[position]["decision_id"].getStr(), seat, seats[seat])
       result.attempts[seat].add(proposal.evidence)
       case proposal.kind
       of pkAccepted:

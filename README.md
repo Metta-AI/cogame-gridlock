@@ -62,14 +62,14 @@ One image, two entrypoints, and the seat kind is chosen by env on the **player**
 
 | env | seat |
 |---|---|
-| `PLAYER_PROMPT=<strategy text>` | a prompt player; it calls Claude from the player container once per turn |
+| `PLAYER_PROMPT=<strategy text>` | a prompt player; it calls the native LLM sidecar from the player container once per turn |
 | `PLAYER_SCRIPTED=dispatcher` | congestion-aware shortest path with jam-triggered metering (the strong baseline, and the certification player) |
 | `PLAYER_SCRIPTED=beeline` | pure greedy shortest path at full throttle (the weak baseline, and the villain of the idea) |
 
 With no policy environment variable, the seat plays `dispatcher`. The game sends each model player
-a private decision, validates and repairs its plan, and records the resolved stream. Missing credentials produce
+a private decision, validates and repairs its plan, and records the resolved stream. An absent native endpoint produces
 an explicit fallback to `dispatcher`, so offline certification still completes.
-Prompt players read `ANTHROPIC_API_KEY` or the Bedrock sidecar. Credentials belong to the player container.
+Prompt players use `COWORLD_LLM_ENDPOINT` and `COWORLD_LLM_MODEL`; provider credentials stay in the platform-owned sidecar.
 External players register `kind: "external"` and submit complete plans over the same private decision interface.
 
 ## Watching it
@@ -111,7 +111,9 @@ Rules in [docs/RULES.md](docs/RULES.md); the wire protocol in
 
 `COGAME_SAVE_TRAJECTORY_URI` captures engine-authoritative private decision events.
 The runtime must also provide `COWORLD_EPISODE_ID`, `COWORLD_GAME_VERSION`, and
-`COWORLD_SOURCE_REVISION`. Events retain every started and completed model attempt,
+`COWORLD_SOURCE_REVISION`. Trusted runtime identity and image digest are captured when supplied.
+The episode version is the published package version; private outcomes separately record
+`engine_rules_version`. Events retain every started and completed model attempt,
 exact private prompts, native call IDs, and the actual installed routing plan.
 The replay's seed, city, and installed plan stream reproduce actual traffic ticks.
 Private observations record exclusive turn tick bounds and the simulation tick rate.
@@ -122,10 +124,14 @@ ordinary player renderer and parser. Invalid replies receive one exact retry vie
 a second failure consumes the decision with the game's dispatcher fallback.
 Numeric choices remain a separate training task.
 
-`tools/export_posttrain.nim OUTPUT EPISODES VARIANT GAME_VERSION` exports complete
-private episodes and intentional view-only teacher labels. Variant-specific episode
+`tools/export_posttrain.nim OUTPUT EPISODES VARIANT GAME_VERSION SOURCE_REVISION` exports complete
+private episodes and intentional view-only teacher labels. Supply the exact immutable source
+commit of the reviewed snapshot; collection also works from its archived source. Variant-specific episode
 IDs share the runtime's `gridlock-<seed>` family for dataset splitting. Exported
-corpora have private directory and file permissions.
+corpora have private directory and file permissions. The exporter writes canonical
+trajectories and a source manifest; the shared reviewed importer owns train/validation splits.
+Scripted teachers retain prompt, response and applied action, with every provider-serving
+field null. They provide source supervision, not model-serving receipts.
 
 `COWORLD_LLM_TEMPERATURE` must be finite and in `[0, 1]`. The native client records
 actual checkpoint and sampling evidence when the provider supplies it. Local HTTP

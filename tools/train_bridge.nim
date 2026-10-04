@@ -102,9 +102,9 @@ proc step(command: JsonNode): JsonNode =
   var consumed = false
   var action: JsonNode
   if languageMode:
-    let frame = %*{"type": "action", "protocol": PlayerProtocol, "id": decisionId,
-      "source": "llm", "response": command["response"]}
-    let proposal = playerProposal($frame, decisionId, seat,
+    let frame = %*{"type": "action", "protocol": PlayerProtocol, "decision_id": $decisionId,
+      "source": "llm", "action": command["response"]}
+    let proposal = playerProposal($frame, $decisionId, seat,
       SeatSnapshot(view: privateView, baseline: baselineInput(privateView),
         previous: game.plans[seat]))
     if proposal.kind == pkRejected:
