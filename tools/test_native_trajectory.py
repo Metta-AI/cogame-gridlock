@@ -225,7 +225,8 @@ for flow in (
                     if "model" in body:
                         assert attempt["model"] == "fixture/served"
                         assert (
-                            attempt["input_tokens"] == 12
+                            attempt["input_tokens"]
+                            == (32768 if flow in {"sampled", "greedy-tokens"} else 12)
                             and attempt["output_tokens"] == 4
                         )
                     if flow == "greedy-tokens":
