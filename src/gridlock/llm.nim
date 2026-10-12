@@ -70,7 +70,7 @@ traffic; it costs you deliveries in the short run and buys a moving city back.
 
 type
   LlmTransport = enum
-    ltNone, ltBedrock, ltAnthropic
+    ltNone, ltSidecar, ltBedrock, ltAnthropic
 
   LlmRequest* = object
     seat*: int
@@ -112,6 +112,7 @@ type
   LlmClient* = ref object
     curl: Curly
     transport: LlmTransport
+    sidecarEndpoint: string
     apiKey: string
     bedrockEndpoint: string
     bedrockModels: seq[string]
@@ -168,6 +169,13 @@ proc bedrockUrl(client: LlmClient): string =
 
 proc newLlmClient*(maxOutputTokens: int, model: string): LlmClient =
   result = LlmClient(model: model, maxOutputTokens: maxOutputTokens)
+  let sidecarEndpoint = strutils.strip(getEnv("COWORLD_LLM_ENDPOINT"))
+  if sidecarEndpoint.len > 0:
+    result.transport = ltSidecar
+    result.sidecarEndpoint = sidecarEndpoint.strip(chars = {'/'}, leading = false)
+    result.model = getEnv("COWORLD_LLM_MODEL", "anthropic/claude-haiku-4.5")
+    result.curl = newCurly()
+    return
   let bedrockEndpoint = strutils.strip(getEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME"))
   let bedrockToken = strutils.strip(getEnv("AWS_BEARER_TOKEN_BEDROCK"))
   if bedrockEndpoint.len > 0 or bedrockToken.len > 0:
@@ -209,7 +217,7 @@ proc userMessage*(request: SeatRequest, retryHint: bool): string =
       "congestion_weight, patience, dispatch, spread, corridor, avoid, " &
       "priority, note and say.")
 
-proc requestFor(client: LlmClient, system, user: string):
+proc requestFor(client: LlmClient, system, user: string, slot: int):
     tuple[url: string, headers: HttpHeaders, body: string] =
   var body = %*{
     "max_tokens": client.maxOutputTokens,
@@ -219,11 +227,17 @@ proc requestFor(client: LlmClient, system, user: string):
   }
   var headers: HttpHeaders
   headers["content-type"] = "application/json"
+  if client.transport == ltSidecar:
+    headers["X-Coworld-Player-Slot"] = $slot
   if client.transport == ltBedrock:
     body["anthropic_version"] = %BedrockAnthropicVersion
     if client.bedrockToken.len > 0:
       headers["authorization"] = "Bearer " & client.bedrockToken
     result.url = client.bedrockUrl()
+  elif client.transport == ltSidecar:
+    body["model"] = %client.model
+    headers["anthropic-version"] = AnthropicVersion
+    result.url = client.sidecarEndpoint & "/v1/messages"
   else:
     body["model"] = %client.model
     ## No `output_config.effort`: Haiku 4.5 rejects the whole request with a
@@ -279,11 +293,9 @@ proc runBatch(client: LlmClient, requests: seq[LlmRequest],
     return client.batchOverride(requests, timeoutSeconds)
   result = newSeq[LlmReply](requests.len)
   var batch: RequestBatch
-  ## The headers are identical for every seat in the batch; only the body
-  ## differs, so build them once.
-  let shared = client.requestFor(SystemPrompt, "")
   for i, request in requests:
-    batch.post(request.url, shared.headers, request.body, $i)
+    let headers = client.requestFor(SystemPrompt, "", request.seat).headers
+    batch.post(request.url, headers, request.body, $i)
   let responses = client.curl.makeRequests(batch, timeoutSeconds)
   for i in 0 ..< requests.len:
     result[i] = LlmReply(seat: requests[i].seat)
@@ -333,7 +345,7 @@ proc decideAll*(client: LlmClient, seats: array[Seats, SeatRequest]):
     var requests: seq[LlmRequest]
     for seat in open:
       let user = userMessage(seats[seat], attempt > 0)
-      let built = client.requestFor(SystemPrompt, user)
+      let built = client.requestFor(SystemPrompt, user, seat)
       requests.add(LlmRequest(seat: seat, url: built.url, body: built.body))
     let attemptStart = epochTime()
     let replies = runBatch(client, requests, timeout)
