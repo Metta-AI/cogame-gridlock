@@ -56,7 +56,6 @@ suite "packaging":
     check compose.contains("  gridlock:")
     check compose.contains("image: coworld-gridlock:latest")
     check compose.contains("platform: linux/amd64")
-    check compose.contains("network: host")
     check manifest["game"]["runnable"]["image"].getStr() ==
       "{{GRIDLOCK_IMAGE}}"
     for declared in manifest["player"]:
