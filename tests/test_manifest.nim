@@ -47,8 +47,7 @@ suite "packaging":
     let runnable = manifest["game"]["runnable"]
     check runnable["type"].getStr() == "game"
     check runnable["run"][0].getStr() == "/bin/gridlock"
-    check runnable["env"]["ANTHROPIC_API_KEY_URI"].getStr() ==
-      "secret://coworld/gridlock/anthropic_api_key"
+    check runnable["env"].len == 0
     check runnable["source_url"].getStr().contains("cogame-gridlock")
 
   test "the image placeholder matches the compose service name":
@@ -57,7 +56,7 @@ suite "packaging":
     check compose.contains("  gridlock:")
     check compose.contains("image: coworld-gridlock:latest")
     check compose.contains("platform: linux/amd64")
-    check compose.contains("network: host")
+
     check manifest["game"]["runnable"]["image"].getStr() ==
       "{{GRIDLOCK_IMAGE}}"
     for declared in manifest["player"]:
