@@ -2,9 +2,10 @@
 ## nim c -d:release --path:src -o:/tmp/gridlock-train-bridge tools/train_bridge.nim
 
 import std/[hashes, json, os]
-import gridlock/[sim, llm, decision]
+import gridlock/[sim, llm, decision, prompts]
 
 var
+  selection: PromptSelection
   game: Sim
   plans: array[Seats, RoutingPlan]
   decisionId: int
@@ -17,12 +18,14 @@ var
 
 proc currentDecision(retry = false): JsonNode =
   let view = userMessage(SeatRequest(prompt: operatorPrompt, viewJson: $buildView(game, seat)), retry)
+  let system = selection.systemPrompt()
   result = %*{"kind": "decision", "game": "gridlock", "decision_id": decisionId,
     "seat": seat, "engine_seat": seat,
     "turn": game.tick div game.config.turnTicks,
-    "semantic_view": {"system": SystemPrompt, "user": view},
+    "semantic_view": {"system": system, "user": view,
+      "prompt_template": selection.promptMetadata(system, view)},
     "inbox": [], "messages": [
-      {"role": "system", "content": SystemPrompt},
+      {"role": "system", "content": system},
       {"role": "user", "content": view}],
     "speech_messages": [],
     "action_schema": {"type": "object", "properties": {
@@ -38,6 +41,9 @@ proc currentDecision(retry = false): JsonNode =
 
 proc reset(command: JsonNode): JsonNode =
   doAssert command["players"].getInt() == Seats
+  selection = promptSelection(command)
+  if command.hasKey("split") and command["split"].getStr() == "train":
+    doAssert selection.selectedVariant notin {pvHeldoutBriefing, pvHeldoutReference}, "held-out wording is evaluation only"
   let manifest = parseFile(manifestPath)
   var variantConfig = newJNull()
   for entry in manifest["variants"]:

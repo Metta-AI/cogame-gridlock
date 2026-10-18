@@ -2,13 +2,17 @@
 ## nim c -d:release --path:src -o:/tmp/gridlock-posttrain tools/export_posttrain.nim
 
 import std/[json, options, os, strutils, sequtils]
-import gridlock/[sim, llm]
+import gridlock/[sim, llm, replay, prompts, prompt_evidence]
 import bitworld/decision_trajectory
 
 when isMainModule:
   let args = commandLineParams()
-  if args.len != 5:
-    quit("usage: gridlock-posttrain OUTPUT EPISODES VARIANT GAME_VERSION SOURCE_REVISION", 1)
+  if args.len notin [5, 7]:
+    quit("usage: gridlock-posttrain OUTPUT EPISODES VARIANT GAME_VERSION SOURCE_REVISION [PROMPT_VARIANT PROMPT_SEED]", 1)
+  let selection = promptSelection(if args.len == 7:
+    %*{"promptVariant": args[5], "promptSeed": parseInt(args[6])} else: newJObject())
+  doAssert selection.selectedVariant notin {pvHeldoutBriefing, pvHeldoutReference}, "held-out wording is evaluation only"
+  let system = selection.systemPrompt()
   let output = args[0]
   let episodes = parseInt(args[1])
   let variant = args[2]
@@ -40,7 +44,7 @@ when isMainModule:
     config.validate()
     var game = initSim(config, loadCitySpec(config.cityPath))
     game.keepSnapshots = false
-    let episodeId = "gridlock-" & variant & "-" & $seed
+    let episodeId = "gridlock-" & variant & "-" & $seed & "-" & $selection.selectedVariant
     let trajectory = newDecisionTrajectory(episodeId, "gridlock-" & $seed,
       "gridlock", gameVersion, revision)
     var episodeDecisions = 0
@@ -60,7 +64,7 @@ when isMainModule:
         plans[seat] = accepted
         var attempt = newDecisionAttempt($startTick & "-" & $seat & "-teacher",
           "dispatcher-view", aoTeacher)
-        attempt.prompt = %*[{"role": "system", "content": SystemPrompt},
+        attempt.prompt = %*[{"role": "system", "content": system},
           {"role": "user", "content": view}]
         attempt.response = %reply
         attempt.parsedAction = planJson(accepted)
@@ -72,13 +76,16 @@ when isMainModule:
       doAssert failure.len == 0
       doAssert game.tick == min(config.episodeTicks, startTick + config.turnTicks)
       for seat in 0 ..< Seats:
-        trajectory.recordDecision($startTick & "-" & $seat, $seat, views[seat],
+        trajectory.recordDecision($startTick & "-" & $seat, $seat,
+          promptObservation(views[seat], selection, @[attempts[seat]]),
           @[attempts[seat]], some(attempts[seat].attemptId), planJson(game.plans[seat]),
           asAccepted, terminal = game.tick >= config.episodeTicks)
     doAssert game.tick == config.episodeTicks
     if not game.finished:
       endEpisode(game, "complete", "full_time")
     let outcome = resultsJson(game)
+    writePrivate(output / (episodeId & ".replay.json"), replayBytes(game, outcome))
+    outcome["prompt_selection"] = selection.selectionMetadata()
     outcome["engine_rules_version"] = %GameVersion
     let scores = outcome["scores"]
     var outcomes = newJObject()
@@ -90,6 +97,8 @@ when isMainModule:
   writePrivate(output / "trajectories.jsonl", trajectoryRows.join("\n") & "\n")
   writePrivate(output / "manifest.json", pretty(%*{
     "schema_version": 1,
+    "prompt_selection": selection.selectionMetadata(),
+    "review_required": true,
     "game": "gridlock",
     "variant": variant,
     "source_revision": revision,
