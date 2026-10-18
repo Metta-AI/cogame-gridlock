@@ -39,7 +39,7 @@ for variant, wording in cases:
     # This socket is bound but never listens: native HTTP receives connection refusal.
     with socket.socket() as unavailable:
         unavailable.bind(("127.0.0.1", 0))
-        config = {
+        config: dict = {
             **variants[variant],
             "seed": 7,
             "promptVariant": wording,

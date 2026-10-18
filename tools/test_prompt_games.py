@@ -5,6 +5,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import TextIO, cast
 
 ROOT = Path(__file__).resolve().parents[1]
 TRAIN = ["canonical", "plain", "numbered", "questions", "reordered"]
@@ -24,10 +25,13 @@ def play(binary, variant, wording, seed, language, prompt_seed=0, original=False
         text=True,
     )
 
+    stdin = cast(TextIO, process.stdin)
+    stdout = cast(TextIO, process.stdout)
+
     def request(payload):
-        process.stdin.write(json.dumps(payload) + "\n")
-        process.stdin.flush()
-        line = process.stdout.readline()
+        stdin.write(json.dumps(payload) + "\n")
+        stdin.flush()
+        line = stdout.readline()
         assert line, process.poll()
         return json.loads(line)
 
@@ -72,8 +76,8 @@ def play(binary, variant, wording, seed, language, prompt_seed=0, original=False
         assert obs["kind"] == "terminal"
         return rows, obs, systems.pop()
     finally:
-        process.stdin.close()
-        process.stdout.close()
+        stdin.close()
+        stdout.close()
         assert process.wait(timeout=10) == 0
 
 
