@@ -9,10 +9,9 @@ when isMainModule:
   let args = commandLineParams()
   if args.len notin [5, 7]:
     quit("usage: gridlock-posttrain OUTPUT EPISODES VARIANT GAME_VERSION SOURCE_REVISION [PROMPT_VARIANT PROMPT_SEED]", 1)
-  let selection = promptSelection(if args.len == 7:
+  let configured = promptSelection(if args.len == 7:
     %*{"promptVariant": args[5], "promptSeed": parseInt(args[6])} else: newJObject())
-  doAssert selection.selectedVariant notin {pvHeldoutBriefing, pvHeldoutReference}, "held-out wording is evaluation only"
-  let system = selection.systemPrompt()
+  doAssert configured.selectedVariant notin {pvHeldoutBriefing, pvHeldoutReference}, "held-out wording is evaluation only"
   let output = args[0]
   let episodes = parseInt(args[1])
   let variant = args[2]
@@ -38,6 +37,9 @@ when isMainModule:
     trajectoryRows: seq[string]
     runs = newJArray()
   for seed in 1 .. episodes:
+    var selection = configured
+    if selection.variant == pvMixed: selection.seed += seed - 1
+    let system = selection.systemPrompt()
     variantConfig["seed"] = %seed
     var config = defaultGameConfig()
     config.update($variantConfig)
@@ -97,7 +99,7 @@ when isMainModule:
   writePrivate(output / "trajectories.jsonl", trajectoryRows.join("\n") & "\n")
   writePrivate(output / "manifest.json", pretty(%*{
     "schema_version": 1,
-    "prompt_selection": selection.selectionMetadata(),
+    "prompt_selection": configured.selectionMetadata(),
     "review_required": true,
     "game": "gridlock",
     "variant": variant,

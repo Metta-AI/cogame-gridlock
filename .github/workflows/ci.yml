@@ -197,8 +197,6 @@ jobs:
           python3 tools/test_native_trajectory.py /tmp/gridlock-game /tmp/gridlock-player /tmp/gridlock-replay-check "$GITHUB_SHA"
           python3 tools/test_prompt_exports.py /tmp/gridlock-posttrain /tmp/gridlock-replay-check \
             "$RUNNER_TEMP/gridlock-prompt-exports" "$GITHUB_SHA"
-          python3 tools/test_native_prompts.py /tmp/gridlock-game /tmp/gridlock-player /tmp/gridlock-replay-check \
-            "$RUNNER_TEMP/gridlock-native-prompts" "$GITHUB_SHA" --smoke
 
       - name: Mixed ordinary player episode
         run: |

@@ -17,7 +17,7 @@ type
     seed*: int
 
 const
-  PromptBankVersion* = "gridlock-rules-v1"
+  PromptBankVersion* = "gridlock-rules-v2"
 
 proc promptSelection*(node: JsonNode): PromptSelection =
   if node.kind != JObject:
@@ -48,7 +48,7 @@ proc selectionMetadata*(selection: PromptSelection): JsonNode =
   %*{"bank": PromptBankVersion, "variant": $selection.selectedVariant,
     "selection": $selection.variant, "seed": selection.seed}
 
-const CanonicalSystemPrompt = """
+const CanonicalBriefing = """
 You are the dispatcher for one parcel fleet of 50 vans in a city shared with three
 rival fleets. The city is a 9x9 grid of intersections joined by two-way roads. Every
 road holds at most 14 vans per direction. Every intersection runs a fixed 4-second
@@ -68,7 +68,9 @@ of a queued road, how full a road must be before they re-plan at an intersection
 many vans you allow on the road at once, how staggered their departures are, which
 district they should prefer or avoid, and which parcel they take next. That is all.
 You cannot steer one van, change a light, or talk to another fleet.
-Reply with a single JSON object and NOTHING else. Your reply MUST begin with '{'.
+"""
+
+const ReplyRules = """Reply with a single JSON object and NOTHING else. Your reply MUST begin with '{'.
 Schema:
 {"congestion_weight":0-100, // how strongly a queued road is avoided when planning
  "patience":0-100,          // how full the next road must be before a van re-plans
@@ -86,13 +88,85 @@ traffic; it costs you deliveries in the short run and buys a moving city back.
 """
 
 proc systemPrompt*(selection: PromptSelection): string =
-  let introduction = case selection.selectedVariant
-    of pvCanonical: "You are the dispatcher for one parcel fleet of 50 vans in a city shared with three\nrival fleets."
-    of pvPlain: "You dispatch a parcel fleet with 50 vans. Three rival fleets share the city with you."
-    of pvNumbered: "1. Your role is parcel-fleet dispatcher. 2. Your fleet has 50 vans. 3. You share the city with three rival fleets."
-    of pvQuestions: "What is your role? Dispatcher of a 50-van parcel fleet. Who shares the city? Three rival fleets."
-    of pvReordered: "Three rival fleets share the city with your parcel fleet. You dispatch its 50 vans."
-    of pvHeldoutBriefing: "Dispatch the 50 vans belonging to your parcel fleet in a city shared with three competing fleets."
-    of pvHeldoutReference: "Role: parcel-fleet dispatcher. Fleet size: 50 vans. Shared city: your fleet and three rival fleets."
-    of pvMixed: raise newException(ValueError, "mixed must resolve")
-  introduction & CanonicalSystemPrompt[96 .. ^1]
+  case selection.selectedVariant
+  of pvCanonical:
+    result = CanonicalBriefing
+  of pvPlain:
+    result = "Dispatch 50 parcel vans while three competing fleets share a 9x9 road grid. " &
+      "Two-way roads hold at most 14 vans in each direction. Lights are fixed: a four-second " &
+      "cycle gives two seconds north-south and two east-west, with diagonal offsets. A green " &
+      "serves one van per service tick, or two on arterials along grid lines 2, 4, and 6. " &
+      "A full outgoing road blocks crossing and backs up the queue behind it.\n" &
+      "From a corner depot, vans load parcels, deliver them, then return. Each delivery by " &
+      "your own fleet earns one point. Scores are independent, so all four fleets can do " &
+      "poorly together. Shared shortest routes can jam the arterials; metering departures " &
+      "and spreading routes can improve total throughput.\n" &
+      "Every 10 seconds choose the fleet routing plan: queued-road cost, replan fullness " &
+      "threshold, active fleet size, departure staggering, preferred and avoided districts, " &
+      "and next-parcel priority. You cannot steer individual vans, alter lights, or talk " &
+      "to other fleets.\n"
+  of pvNumbered:
+    result = "1. Fleet: 50 parcel vans under your dispatch, sharing a city with three rivals.\n" &
+      "2. City: a 9x9 intersection grid with two-way roads, capacity 14 vans per direction.\n" &
+      "3. Signals: fixed four-second cycles, two seconds north-south then two east-west, " &
+      "offset diagonally. Greens serve one van per service tick; arterials on lines 2, 4, " &
+      "and 6 serve two. Full outgoing roads prevent crossing and propagate queues backward.\n" &
+      "4. Work: load at your corner depot, deliver to the parcel address, return for more.\n" &
+      "5. Reward: one point per own delivery, never a share. All fleets can lose throughput " &
+      "together when shared shortest routes flood arterials; spreading and metering help.\n" &
+      "6. Decision: every 10 seconds set queued-road cost, replan fullness, on-road van " &
+      "limit, departure staggering, district preference/avoidance, and parcel priority.\n" &
+      "7. Limits: no individual steering, light control, or communication with rivals.\n"
+  of pvQuestions:
+    result = "What do you control? A 50-van parcel fleet; three rival fleets use the same city. " &
+      "Every 10 seconds set a routing plan covering congestion pricing, replan fullness, " &
+      "active vans, staggered departures, district preference/avoidance, and parcel priority. " &
+      "You cannot steer a single van, change a signal, or talk to rivals.\n" &
+      "What earns points? Own deliveries, one point each. Vans load at a corner depot, " &
+      "deliver, and return. This is no score share: everyone can score poorly when shortest " &
+      "routes overload arterials; spreading and metering can keep the city moving.\n" &
+      "What causes jams? The 9x9 grid has two-way roads with only 14 vans per direction. " &
+      "Fixed signals alternate two seconds north-south with two east-west, diagonally " &
+      "offset. A green serves one van per service tick, or two on arterial lines 2, 4, " &
+      "and 6. A full destination road blocks crossing and pushes the queue backward.\n"
+  of pvReordered:
+    result = "Earn one point for each parcel your own vans deliver. Scores are not shares; " &
+      "all four fleets can score badly. Loading at a corner depot, delivering, and returning " &
+      "is the work cycle for your 50 vans. If everyone takes the same shortest routes, " &
+      "arterials clog; spreading routes and metering traffic can raise shared throughput.\n" &
+      "The city is a 9x9 intersection grid with two-way roads, 14 vans per direction. " &
+      "Uncontrollable lights repeat two seconds north-south and two east-west with diagonal " &
+      "offsets. Each green service tick passes one van, or two on arterial grid lines " &
+      "2, 4, and 6. When an outgoing road fills, crossing stops and queues spill backward.\n" &
+      "With three rival fleets sharing the city, update your plan every 10 seconds: " &
+      "queued-road costs, replan fullness, allowed on-road fleet size, departure stagger, " &
+      "district preference and avoidance, and parcel selection. No single-van steering, " &
+      "signal changes, or inter-fleet conversation are available.\n"
+  of pvHeldoutBriefing:
+    result = "You dispatch one of four fleets, each with 50 vans. Your corner depot loads " &
+      "parcels for delivery, after which vans return. Each own delivery earns one point; " &
+      "scores are independent, allowing everyone to perform badly at once.\n" &
+      "Use a fleet-wide routing plan once per 10 seconds. Choose queued-road cost, " &
+      "replanning fullness, active-van limit, departure staggering, district preference " &
+      "and avoidance, and parcel priority. Individual steering, signal control, and " &
+      "communication with other fleets are unavailable.\n" &
+      "The 9x9 intersection grid has two-way roads holding 14 vans per direction. Fixed " &
+      "four-second signals split equally between north-south and east-west with diagonal " &
+      "offsets. Greens serve one van per service tick, doubled on arterial lines 2, 4, " &
+      "and 6. Full downstream roads stop crossing and back up upstream queues. Shared " &
+      "shortest routes can overload those arterials; spreading and metering can improve " &
+      "the number of parcels all fleets deliver.\n"
+  of pvHeldoutReference:
+    result = "Fleet: 50 vans, three rival fleets. Task cycle: load at corner depot, deliver, " &
+      "return. Payoff: one point per own delivery, no score sharing; all fleets can do poorly.\n" &
+      "Network: 9x9 intersections, two-way roads, 14 vans per direction. Signals: fixed " &
+      "four-second period, two north-south plus two east-west, diagonal offsets. Green " &
+      "service: one van per tick, two on arterial lines 2/4/6. Spillback: full next road " &
+      "blocks crossing, propagating its queue upstream.\n" &
+      "Control interval: 10 seconds. Plan controls: congestion pricing, replan fullness, " &
+      "on-road van limit, departure stagger, preferred/avoided district, next parcel. " &
+      "Unavailable: single-van steering, signal changes, inter-fleet talk. Commons risk: " &
+      "shared shortest paths flood arterials; spreading and metering can improve throughput.\n"
+  of pvMixed:
+    raise newException(ValueError, "mixed must resolve")
+  result.add(ReplyRules)

@@ -1,11 +1,12 @@
 # Gridlock post-training
 
-Gridlock provides five training introductions (`canonical`, `plain`, `numbered`,
-`questions`, `reordered`) and two evaluation-only introductions
+Gridlock provides five training rule explanations (`canonical`, `plain`, `numbered`,
+`questions`, `reordered`) and two evaluation-only explanations
 (`heldout-briefing`, `heldout-reference`). `mixed` selects one training wording
 using an explicit nonnegative `promptSeed`, independently of the simulation seed.
 Selection stays fixed through all turns and retries. Canonical text and the
-routing schema remain unchanged.
+routing schema remain unchanged. The `gridlock-rules-v2` bank varies fleet control,
+city capacity, signals, spillback, delivery scoring, and communication limits.
 
 The host supplies selection to native players in private decision frames.
 Existing native trajectories retain actual requests, responses, retries, installed
@@ -17,7 +18,7 @@ held-out wordings. Rendered message hashes accompany each private observation.
 
 The source exporter accepts `OUTPUT EPISODES VARIANT GAME_VERSION SOURCE_REVISION`
 and optional `PROMPT_VARIANT PROMPT_SEED`. Supply the immutable reviewed source
-revision, including for archived binaries. At least ten complete matches are
+revision, including for archived binaries. Mixed exports cycle the five training wordings between games. At least ten complete matches are
 required. Outputs contain canonical private candidate trajectories, not automatic
 training or validation labels. Independent review owns admission and splits.
 Seed families group wording and mode replicas so they cannot leak across splits.

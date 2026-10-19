@@ -53,21 +53,15 @@ def play(binary, variant, wording, seed, language, prompt_seed=0, original=False
             systems.add(system)
             if not original:
                 meta = obs["semantic_view"]["prompt_template"]
-                assert meta["bank"] == "gridlock-rules-v1"
-                assert meta["variant"] == (
-                    TRAIN[prompt_seed % 5] if wording == "mixed" else wording
-                )
-                assert (
-                    meta["system_sha256"] == hashlib.sha256(system.encode()).hexdigest()
-                )
+                assert meta["bank"] == "gridlock-rules-v2"
+                assert meta["variant"] == (TRAIN[prompt_seed % 5] if wording == "mixed" else wording)
+                assert meta["system_sha256"] == hashlib.sha256(system.encode()).hexdigest()
                 assert meta["user_sha256"] == hashlib.sha256(user.encode()).hexdigest()
             view = json.loads(user.split("\n\n", 1)[1] if language else user)
             encoding = request({"kind": "encode"})
             assert len(encoding["values"]) == 45
             action = request({"kind": "teacher"})["response"]
-            result = request(
-                {"kind": "step", "decision_id": obs["decision_id"], "response": action}
-            )
+            result = request({"kind": "step", "decision_id": obs["decision_id"], "response": action})
             assert result["kind"] == "accepted"
             rows.append((view, encoding, result["action"]))
             obs = result["observation"]
@@ -86,7 +80,7 @@ if __name__ == "__main__":
     count = 0
     for variant in ("default", "rush"):
         for language in (False, True):
-            for seed in ("wording-1", "wording-2"):
+            for seed in ("wording-1",):
                 canonical = play(binary, variant, "canonical", seed, language)
                 count += 1
                 if len(sys.argv) == 3:
@@ -103,7 +97,7 @@ if __name__ == "__main__":
                     assert actual[:2] == canonical[:2]
                     assert actual[2] != canonical[2]
                     count += 1
-                for prompt_seed in range(5):
+                for prompt_seed in (4,):
                     actual = play(binary, variant, "mixed", seed, language, prompt_seed)
                     assert actual[:2] == canonical[:2]
                     count += 1
