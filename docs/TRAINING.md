@@ -8,7 +8,8 @@ Selection stays fixed through all turns and retries. Canonical text and the
 routing schema remain unchanged. The `gridlock-rules-v2` bank varies fleet control,
 city capacity, signals, spillback, delivery scoring, and communication limits.
 
-The host supplies selection to native players in private decision frames.
+The host supplies selection to native players in private decision frames. Deploy
+the game and player from the same revision: the player requires `prompt_config`.
 Existing native trajectories retain actual requests, responses, retries, installed
 plans and reader cleanup. Prompt selection never enters the public replay.
 
@@ -24,6 +25,13 @@ required. Outputs contain canonical private candidate trajectories, not automati
 training or validation labels. Independent review owns admission and splits.
 Seed families group wording and mode replicas so they cannot leak across splits.
 Both certified variants use the shipped dispatcher teacher and unchanged scores.
+
+Inspect the imported manifest, including `prompt_wordings`, after target filtering
+and splitting. Seeds 1–10 produced no validation targets in the shared importer.
+A measured collection of 20 mixed games per variant, beginning at seed 1 with
+prompt seed 0, retained all five training wordings and both splits: default
+1,440 training/160 validation targets, rush 864/96. Other seed ranges and filters
+need their own coverage check. Source export alone does not establish admission.
 
 Run `python3 tools/test_prompt_games.py BRIDGE [ORIGINAL_BRIDGE]` for complete
 published matches covering every wording and mixed seed. It compares private
