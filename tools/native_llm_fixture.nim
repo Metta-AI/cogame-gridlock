@@ -1,9 +1,9 @@
 ## Direct native transport probe; all provider identities are fixture-only.
 import std/[json, monotimes, os, strutils, times]
 import bitworld/[decision_trajectory, native_stop]
-import gridlock/llm
+import gridlock/[llm, prompts]
 
-when isMainModule:
+proc main() =
   let args = commandLineParams()
   doAssert args.len == 2
   let output = args[0]
@@ -14,9 +14,12 @@ when isMainModule:
   proc started(attempt: DecisionAttempt) =
     writePrivate(output / "started.json", $attempt.attemptEvidenceJson() & "\n")
   try:
-    discard client.choosePromptPlan("fixture strategy", "{\"fixture\":true}", false,
+    discard client.choosePromptPlan(PromptSelection(), "fixture strategy", "{\"fixture\":true}", false,
       getMonoTime() + initDuration(milliseconds = timeoutMs), 0,
       "fixture-attempt", "fixture-native", started)
     echo "native transport fixture completed"
   finally:
     writePrivate(output / "finished.json", $client.lastAttempt.attemptEvidenceJson() & "\n")
+
+when isMainModule:
+  main()

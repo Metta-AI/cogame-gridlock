@@ -48,8 +48,8 @@ def play(variant: str, teacher: bool, language: bool) -> None:
             assert observation["game"] == "gridlock"
             assert observation["decision_id"] == decisions
             view = observation["semantic_view"]
-            assert view == {"system": observation["messages"][0]["content"],
-                            "user": observation["messages"][1]["content"]}
+            assert view["system"] == observation["messages"][0]["content"]
+            assert view["user"] == observation["messages"][1]["content"]
             assert "local-seat" not in json.dumps(view)
             encoding = request({"kind": "encode"})
             assert encoding["decision_id"] == decisions

@@ -1,41 +1,43 @@
 # Gridlock post-training
 
-The exporter records complete production Gridlock matches against the shipped
-`dispatcher` teacher. Every routing turn captures the hosted system prompt,
-the acting seat's public view, and a teacher plan accepted by the game's
-reply parser. Four plans resolve simultaneously through the native simulator.
-Both certified variants are supported.
+Gridlock provides five training rule explanations (`canonical`, `plain`, `numbered`,
+`questions`, `reordered`) and two evaluation-only explanations
+(`heldout-briefing`, `heldout-reference`). `mixed` selects one training wording
+using an explicit nonnegative `promptSeed`, independently of the simulation seed.
+Selection stays fixed through all turns and retries. Canonical text and the
+routing schema remain unchanged. The `gridlock-rules-v2` bank varies fleet control,
+city capacity, signals, spillback, delivery scoring, and communication limits.
 
-```sh
-nimby sync nimby.lock
-nim c -d:release --path:src -o:/tmp/gridlock-posttrain tools/export_posttrain.nim
-/tmp/gridlock-posttrain /tmp/gridlock-default-dataset 10 default
-/tmp/gridlock-posttrain /tmp/gridlock-rush-dataset 10 rush
-python3 tools/test_export_posttrain.py /tmp/gridlock-posttrain
-```
+The host supplies selection to native players in private decision frames. Deploy
+the game and player from the same revision: the player requires `prompt_config`.
+Existing native trajectories retain actual requests, responses, retries, installed
+plans and reader cleanup. Prompt selection never enters the public replay.
 
-`train.jsonl` and `validation.jsonl` split complete games by seed. The
-manifest records source revision, variant, final production scores, and row
-counts. The exporter requires ten matches and refuses to overwrite an output
-directory. Ten default matches yield 640 train and 160 validation decisions;
-ten rush matches yield 384 and 96.
+The bridge accepts `MANIFEST VARIANT --language [OPERATOR_PROMPT]`. Reset
+commands accept `promptVariant`, `promptSeed`, and `split`. Held-out wordings
+require an explicit `evaluation`, `validation`, or `test` split; omitted, training,
+and unrecognized splits reject them. Rendered message hashes accompany each private observation.
 
-From a Metta checkout with the post-training package installed:
+The source exporter accepts `OUTPUT EPISODES VARIANT GAME_VERSION SOURCE_REVISION`
+and optional `PROMPT_VARIANT PROMPT_SEED`. Supply the immutable reviewed source
+revision, including for archived binaries. Mixed exports cycle the five training wordings between games. At least ten complete matches are
+required. Outputs contain canonical private candidate trajectories, not automatic
+training or validation labels. Independent review owns admission and splits.
+Seed families group wording and mode replicas so they cannot leak across splits.
+Both certified variants use the shipped dispatcher teacher and unchanged scores.
 
-```sh
-uv run --package metta-posttrain --extra train python -m metta_posttrain.train \
-  --dataset /tmp/gridlock-default-dataset \
-  --output /tmp/gridlock-adapter --model Qwen/Qwen3-0.6B \
-  --max-steps 100 --max-length 4096
-```
+Inspect the imported manifest, including `prompt_wordings`, after target filtering
+and splitting. Seeds 1–10 produced no validation targets in the shared importer.
+A measured collection of 20 mixed games per variant, beginning at seed 1 with
+prompt seed 0, retained all five training wordings and both splits: default
+1,440 training/160 validation targets, rush 864/96. Other seed ranges and filters
+need their own coverage check. Source export alone does not establish admission.
 
-These examples distill the scripted teacher. The game's delivered-parcel
-score is not constant-sum; no shared normalization is applied.
-
-All 800 default and 480 rush examples fit 4,096 tokens with the local
-WordLevel smoke tokenizer. One CPU optimizer step reduced four-example
-validation loss from 1.71899 to 1.71315 for each variant. This verifies the
-post-training path, not improved league play.
+Run `python3 tools/test_prompt_games.py BRIDGE [ORIGINAL_BRIDGE]` for complete
+published matches covering every wording and mixed seed. It compares private
+views, installed actions, numeric encodings, terminal scores and canonical text.
+These deterministic checks do not establish improved model play or prevention of
+training collapse. Matched learning comparisons remain unrun.
 
 ## Numeric reinforcement learning
 
@@ -67,3 +69,7 @@ Checkpoint reload and held-out seeds 101 and 102 produced mean scores
 180.5/184.0 for default and 171.2/178.2 for rush. Checkpoint SHA-256 values
 were `b80a947f44ba19bfaa6ac4160f345a1b1e356ca676f7dbb7e86decf4e21a4a1c`
 and `ea92171b5870908303e9acab9fdf29c50a34d2b4a37617cd5f74e6c12d58b69d`.
+
+Episode IDs include requested selection, resolved wording, and prompt seed, so
+matched explicit and mixed collections remain distinct. Scenario families and
+shared importer ownership of review and splitting stay unchanged.

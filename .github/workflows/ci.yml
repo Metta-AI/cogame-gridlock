@@ -160,6 +160,7 @@ jobs:
           nim c --hints:off -d:release --path:src \
             -o:/tmp/gridlock-train-bridge tools/train_bridge.nim
           python3 tools/test_train_bridge.py /tmp/gridlock-train-bridge
+          python3 tools/test_prompt_games.py /tmp/gridlock-train-bridge
 
       - name: Verify owned reference-player transport
         run: |
@@ -194,6 +195,8 @@ jobs:
           nim c --hints:off -d:release --path:src -o:/tmp/gridlock-player src/gridlock_player.nim
           nim c --hints:off -d:release --path:src -o:/tmp/gridlock-replay-check tools/verify_replay.nim
           python3 tools/test_native_trajectory.py /tmp/gridlock-game /tmp/gridlock-player /tmp/gridlock-replay-check "$GITHUB_SHA"
+          python3 tools/test_prompt_exports.py /tmp/gridlock-posttrain /tmp/gridlock-replay-check \
+            "$RUNNER_TEMP/gridlock-prompt-exports" "$GITHUB_SHA"
 
       - name: Mixed ordinary player episode
         run: |

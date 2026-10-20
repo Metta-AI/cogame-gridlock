@@ -72,6 +72,8 @@ def main(game_bin, player_bin):
     with server, tempfile.TemporaryDirectory(prefix="gridlock-player-smoke-") as work:
         directory = Path(work)
         config = {
+            "promptVariant": "mixed",
+            "promptSeed": 4,
             "tokens": [f"token-{slot}" for slot in range(4)],
             "players": [{"name": f"P{slot + 1}"} for slot in range(4)],
             "num_agents": 4,
@@ -125,15 +127,11 @@ def main(game_bin, player_bin):
             assert ready, "game socket never opened"
             for slot in range(4):
                 player_env = env | {
-                    "COWORLD_PLAYER_WS_URL": (
-                        f"ws://127.0.0.1:{game_port}/player?slot={slot}&token=token-{slot}"
-                    )
+                    "COWORLD_PLAYER_WS_URL": (f"ws://127.0.0.1:{game_port}/player?slot={slot}&token=token-{slot}")
                 }
                 if slot < 2:
                     player_env["PLAYER_PROMPT"] = "Route around traffic and meter vans."
-                    player_env["COWORLD_LLM_ENDPOINT"] = (
-                        f"http://127.0.0.1:{model_port}"
-                    )
+                    player_env["COWORLD_LLM_ENDPOINT"] = f"http://127.0.0.1:{model_port}"
                 else:
                     player_env["PLAYER_SCRIPTED"] = "dispatcher"
                 processes.append(
@@ -158,9 +156,9 @@ def main(game_bin, player_bin):
             assert replay["results"]["turns_llm"][:2] == [2, 2]
             prompt_calls = [call for call in ModelHandler.calls if call[0] == "prompt"]
             assert len(prompt_calls) == 4, len(prompt_calls)
-            print(
-                "Gridlock mixed native episode: 4 prompt plans accepted; zero fallback"
-            )
+            for _, _, request in prompt_calls:
+                assert "Earn one point for each parcel" in request["system"]
+            print("Gridlock mixed native episode: 4 prompt plans accepted; zero fallback")
         finally:
             for process in processes:
                 if process.poll() is None:

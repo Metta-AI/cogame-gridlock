@@ -53,6 +53,14 @@ status, call identity, sampling metadata, and reader join. Received facts cannot
 A selected model response must match its received native body and parse to the submitted action.
 Fallback replies set `source: "fallback"`; the engine retains evidence and applies dispatcher after its retry budget.
 
+Each private decision also carries `prompt_config` (`promptVariant`, `promptSeed`)
+and `prompt_selection` (bank, resolved variant, requested selection, and seed).
+The native player renders that selection for every attempt. The host checks
+received prompts against the same rendering. Selection is episode-stable and
+independent of the city seed; it never changes routing rules or public replay.
+Private trajectories retain the selection and actual per-attempt message hashes,
+including retries. See [post-training](TRAINING.md) for training and held-out banks.
+
 Every turn retains the original 22-second ceiling, with at most 14 seconds then 6 seconds.
 Transport budgets are outside the model prompt. All incoming frames are bounded to 16 MiB.
 

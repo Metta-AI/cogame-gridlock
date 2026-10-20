@@ -36,7 +36,7 @@ import state
 import view
 import baselines
 import roster
-import decision
+import decision, prompts, prompt_evidence
 import llm
 import startup
 import wire_constants
@@ -62,6 +62,7 @@ type
     fallback: Option[string]
 
   GameState = object
+    selection: PromptSelection
     config: GameConfig
     game: Sim
     seats: Roster
@@ -245,13 +246,16 @@ proc exchangeDecisions(requests: seq[JsonNode], timeoutMs: int):
         appState.issuedDeadline[id] = deadline
         appState.latestDecisions[slot] = id
         appState.issuedPrompts[id] = %*[
-          {"role": "system", "content": SystemPrompt},
+          {"role": "system", "content": appState.selection.systemPrompt()},
           {"role": "user", "content": userMessage(SeatRequest(
             prompt: request["prompt"].getStr(), viewJson: $request["observation"]),
             request["attempt"].getInt() > 1)}]
         appState.actionReplies.del(slot)
         if appState.playerSockets.hasKey(slot):
-          appState.playerSockets[slot].send($request)
+          var issued = copy(request)
+          issued["prompt_config"] = %*{"promptVariant": $appState.selection.variant, "promptSeed": appState.selection.seed}
+          issued["prompt_selection"] = appState.selection.selectionMetadata()
+          appState.playerSockets[slot].send($issued)
     while getMonoTime() < deadline and not interruptionRequested():
       var pending = false
       withLock stateLock:
@@ -323,6 +327,7 @@ proc finishEpisode(runtimeConfig: RuntimeConfig, episodeDeadline: MonoTime, fail
     var cleanup = newJObject()
     for slot in targets: cleanup[$slot] = %(if slot in appState.stoppedSlots: "joined" else: "unresolved")
     privateOutcome = copy(results)
+    privateOutcome["prompt_selection"] = appState.selection.selectionMetadata()
     privateOutcome["engine_rules_version"] = %GameVersion
     privateOutcome["player_cleanup"] = cleanup
     replayData = replayBytes(appState.game, results)
@@ -342,14 +347,14 @@ proc finishEpisode(runtimeConfig: RuntimeConfig, episodeDeadline: MonoTime, fail
               attempt.accepted = accepted
               attempt.rejectionReason = rejection
         appState.trajectory.recordDecision(pending.id, pending.seat,
-          pending.observation, attempts, pending.selected, pending.action,
+          promptObservation(pending.observation, appState.selection, attempts), attempts, pending.selected, pending.action,
           (if pending.selected.isSome: asAccepted else: asFallback), terminal = pending.terminal, fallbackOrigin = pending.fallback)
       for id, evidence in appState.startedAttempts:
         var attempt = readAttemptEvidence(evidence)
         if attempt.attemptId notin represented:
           attempt.rejectionReason = some("issued native attempt never reached an applied engine action")
           appState.trajectory.recordDecision(id, $appState.issuedSeats[id],
-            appState.issuedObservations[id], @[attempt], none(string), newJNull(),
+            promptObservation(appState.issuedObservations[id], appState.selection, @[attempt]), @[attempt], none(string), newJNull(),
             asMissing, terminal = true)
       var outcomes = newJObject()
       for seat in 0 ..< Seats: outcomes[$seat] = results["scores"][seat]
@@ -759,6 +764,7 @@ proc runGameServer*(gameConfig: GameConfig, spec: CitySpec,
   if gameConfig.tokens.len != gameConfig.players.len:
     raise newException(GridlockError, "tokens and players must align")
   validate(gameConfig)
+  appState.selection = promptSelection(parseJson(runtimeConfig.config))
   appState.config = gameConfig
   appState.game = initSim(gameConfig, spec)
   if getEnv(CogameSaveTrajectoryUriEnv).len > 0:

@@ -28,6 +28,9 @@ def arr(desc, item):
 
 
 config_props = collections.OrderedDict()
+config_props["promptVariant"] = {"type": "string", "default": "canonical",
+    "enum": ["canonical", "plain", "numbered", "questions", "reordered", "heldout-briefing", "heldout-reference", "mixed"]}
+config_props["promptSeed"] = {"type": "integer", "minimum": 0, "default": 0}
 config_props["tokens"] = {
     "description": "One connection token per player slot, indexed by slot.",
     "type": "array", "minItems": 4, "maxItems": 4,
