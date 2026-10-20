@@ -1,11 +1,12 @@
 ## Gridlock prompt/scripted player with one owned native reader per decision.
 import std/[atomics, json, locks, math, monotimes, options, os, strutils, times]
 import bitworld/[decision_trajectory, native_stop, native_websocket]
-import gridlock/[llm, plan, types]
+import gridlock/[llm, plan, types, prompts]
 
 type PlayerCall = object
   socket: ptr NativeWebSocket
   decisionId, observation, prompt, policy: string
+  selection: PromptSelection
   slot, attempt: int
   deadline: MonoTime
 
@@ -44,7 +45,7 @@ proc runDecision(call: PlayerCall) {.gcsafe.} =
       if sent.kind != wsReady:
         raise newException(GridlockError, "native attempt start was not delivered")
     try:
-      let response = client.choosePromptPlan(call.prompt, call.observation,
+      let response = client.choosePromptPlan(call.selection, call.prompt, call.observation,
         call.attempt > 1, call.deadline, call.slot, call.decisionId & "-model",
         call.policy, beforeCall)
       let previous =
@@ -167,6 +168,7 @@ when isMainModule:
         workerFinished.store(false)
         createThread(worker, runDecision, PlayerCall(socket: socket.addr,
           decisionId: decisionId.getStr(), observation: $payload["observation"],
+          selection: promptSelection(payload["prompt_config"]),
           prompt: prompt, policy: policy, slot: payload["slot"].getInt(),
           attempt: payload["attempt"].getInt(),
           deadline: min(playerDeadline, receivedAt + initDuration(milliseconds = budget))))
