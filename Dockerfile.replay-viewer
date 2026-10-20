@@ -7,6 +7,7 @@
 # heat map, which is the whole picture) is recomputed in the browser rather
 # than transported.
 FROM emscripten/emsdk:4.0.15 AS replay-viewer-builder
+SHELL ["/usr/bin/nice", "-n", "19", "/bin/sh", "-c"]
 
 RUN apt-get update && \
   apt-get install -y --no-install-recommends ca-certificates curl git && \
