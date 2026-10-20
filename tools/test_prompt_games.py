@@ -77,6 +77,17 @@ def play(binary, variant, wording, seed, language, prompt_seed=0, original=False
 
 if __name__ == "__main__":
     binary = Path(sys.argv[1]).resolve()
+    for split in (None, "train", "typo"):
+        reset = {"kind": "reset", "players": 4, "seed": "wording-1",
+                 "promptVariant": "heldout-briefing", "promptSeed": 0}
+        if split is not None:
+            reset["split"] = split
+        rejected = subprocess.run(
+            [str(binary), str(ROOT / "coworld_manifest_template.json"), "default", "--language"],
+            input=json.dumps(reset) + "\n", text=True, capture_output=True, timeout=30,
+        )
+        assert rejected.returncode != 0
+        assert "held-out wording requires an explicit evaluation split" in rejected.stderr
     count = 0
     for variant in ("default", "rush"):
         for language in (False, True):

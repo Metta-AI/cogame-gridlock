@@ -13,8 +13,9 @@ Existing native trajectories retain actual requests, responses, retries, install
 plans and reader cleanup. Prompt selection never enters the public replay.
 
 The bridge accepts `MANIFEST VARIANT --language [OPERATOR_PROMPT]`. Reset
-commands accept `promptVariant`, `promptSeed`, and `split`; training rejects
-held-out wordings. Rendered message hashes accompany each private observation.
+commands accept `promptVariant`, `promptSeed`, and `split`. Held-out wordings
+require an explicit `evaluation`, `validation`, or `test` split; omitted, training,
+and unrecognized splits reject them. Rendered message hashes accompany each private observation.
 
 The source exporter accepts `OUTPUT EPISODES VARIANT GAME_VERSION SOURCE_REVISION`
 and optional `PROMPT_VARIANT PROMPT_SEED`. Supply the immutable reviewed source
