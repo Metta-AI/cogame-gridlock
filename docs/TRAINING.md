@@ -69,3 +69,7 @@ Checkpoint reload and held-out seeds 101 and 102 produced mean scores
 180.5/184.0 for default and 171.2/178.2 for rush. Checkpoint SHA-256 values
 were `b80a947f44ba19bfaa6ac4160f345a1b1e356ca676f7dbb7e86decf4e21a4a1c`
 and `ea92171b5870908303e9acab9fdf29c50a34d2b4a37617cd5f74e6c12d58b69d`.
+
+Episode IDs include requested selection, resolved wording, and prompt seed, so
+matched explicit and mixed collections remain distinct. Scenario families and
+shared importer ownership of review and splitting stay unchanged.

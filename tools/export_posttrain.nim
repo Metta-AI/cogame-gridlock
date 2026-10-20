@@ -46,7 +46,8 @@ when isMainModule:
     config.validate()
     var game = initSim(config, loadCitySpec(config.cityPath))
     game.keepSnapshots = false
-    let episodeId = "gridlock-" & variant & "-" & $seed & "-" & $selection.selectedVariant
+    let episodeId = "gridlock-" & variant & "-" & $seed & "-" &
+      $selection.variant & "-" & $selection.selectedVariant & "-" & $selection.seed
     let trajectory = newDecisionTrajectory(episodeId, "gridlock-" & $seed,
       "gridlock", gameVersion, revision)
     var episodeDecisions = 0
